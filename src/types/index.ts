@@ -113,9 +113,25 @@ export interface PrintSettings {
   wallpaperTheme?: WallpaperTheme;
 }
 
+export interface UserAccount {
+  id: string;
+  username: string;
+  email: string;
+  password?: string;
+  phone: string;
+  address: string;
+  locale?: string;
+  timezone?: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface UserProfile {
   id: string;
   display_name: string;
+  email?: string;
+  phone?: string;
+  address?: string;
   locale: string;
   timezone: string;
   created_at: string;

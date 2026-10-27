@@ -8,9 +8,10 @@ import {
   Settings, 
   ChevronLeft, 
   ChevronRight,
-  FolderOpen
+  FolderOpen,
+  LogOut
 } from 'lucide-react';
-import { TemplateType } from '../types';
+import { TemplateType, UserAccount } from '../types';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
 
 interface SidebarProps {
@@ -21,6 +22,8 @@ interface SidebarProps {
   onToggle: () => void;
   onOpenAccount: () => void;
   onCreateFromTemplate: (type: TemplateType) => void;
+  currentUser?: UserAccount | null;
+  onLogout?: () => void;
   counts: {
     total: number;
     timetable: number;
@@ -37,6 +40,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggle,
   onOpenAccount,
   onCreateFromTemplate,
+  currentUser,
+  onLogout,
   counts
 }) => {
   return (
@@ -186,13 +191,33 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
         </div>
 
-        {/* Pied de sidebar épuré */}
+        {/* Pied de sidebar avec informations de session et déconnexion */}
         {isOpen && (
           <div className="sidebar-footer">
-            <div className="sidebar-footer-card">
-              <span className="footer-card-tag">Format Libre</span>
-              <p className="footer-card-text">Export adapté aux écrans et à l'impression papier.</p>
-            </div>
+            {currentUser && (
+              <div className="sidebar-footer-card" style={{ marginBottom: '0.6rem' }}>
+                <span className="footer-card-tag" style={{ color: '#10b981' }}>Session active</span>
+                <p className="footer-card-text" style={{ fontWeight: 600, color: 'var(--text-primary)' }}>
+                  {currentUser.username}
+                </p>
+                <p className="footer-card-text" style={{ fontSize: '0.7rem', opacity: 0.8 }}>
+                  {currentUser.email}
+                </p>
+              </div>
+            )}
+
+            {onLogout && (
+              <button
+                type="button"
+                className="sidebar-nav-item"
+                onClick={onLogout}
+                style={{ color: 'var(--danger)', width: '100%', justifyContent: 'flex-start' }}
+                title="Se déconnecter"
+              >
+                <LogOut size={16} />
+                <span className="nav-label">Déconnexion</span>
+              </button>
+            )}
           </div>
         )}
       </aside>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Board, TemplateType } from './types';
+import { Board, TemplateType, UserAccount } from './types';
 import {
   getStoredBoards,
   saveBoard,
@@ -10,6 +10,8 @@ import {
   createBoardFromTemplate,
   SaveStatus
 } from './services/storageService';
+import { getCurrentUser, logoutUser } from './services/authService';
+import { AuthPage } from './components/AuthPage';
 import { Header } from './components/Header';
 import { Sidebar } from './components/Sidebar';
 import { BoardList } from './components/BoardList';
@@ -17,6 +19,9 @@ import { BoardEditor } from './components/BoardEditor';
 import { AccountModal } from './components/AccountModal';
 
 export const App: React.FC = () => {
+  // Session utilisateur
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => getCurrentUser());
+
   const [boards, setBoards] = useState<Board[]>([]);
   const [activeBoardId, setActiveBoardId] = useState<string | null>(null);
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -42,15 +47,24 @@ export const App: React.FC = () => {
     localStorage.setItem('planilux_theme', theme);
   }, [theme]);
 
-  // Chargement initial des tableaux
-  const refreshBoards = () => {
-    const list = getStoredBoards(true);
+  // Chargement des tableaux cloisonnés pour l'utilisateur connecté
+  const refreshBoards = (userId?: string) => {
+    const uid = userId || currentUser?.id;
+    if (!uid) {
+      setBoards([]);
+      return;
+    }
+    const list = getStoredBoards(true, uid);
     setBoards(list);
   };
 
   useEffect(() => {
-    refreshBoards();
-  }, []);
+    if (currentUser) {
+      refreshBoards(currentUser.id);
+    } else {
+      setBoards([]);
+    }
+  }, [currentUser]);
 
   // Détection d'un paramètre URL de partage
   useEffect(() => {
@@ -66,6 +80,14 @@ export const App: React.FC = () => {
     setTheme(prev => (prev === 'light' ? 'dark' : 'light'));
   };
 
+  // Déconnexion
+  const handleLogout = () => {
+    logoutUser();
+    setCurrentUser(null);
+    setBoards([]);
+    setActiveBoardId(null);
+  };
+
   // Tableau actif
   const activeBoard = boards.find(b => b.id === activeBoardId) || null;
 
@@ -78,7 +100,7 @@ export const App: React.FC = () => {
     trash: boards.filter(b => !!b.deleted_at).length
   };
 
-  // Mise à jour avec sauvegarde automatique temporisée (Debounced Auto-save)
+  // Mise à jour avec sauvegarde automatique temporisée
   const handleUpdateActiveBoard = (updated: Board) => {
     setSaveStatus('saving');
     setBoards(prev => prev.map(b => (b.id === updated.id ? updated : b)));
@@ -89,7 +111,9 @@ export const App: React.FC = () => {
 
     saveTimeoutRef.current = setTimeout(() => {
       try {
-        saveBoard(updated);
+        if (currentUser) {
+          saveBoard(updated, currentUser.id);
+        }
         setSaveStatus('saved');
       } catch (err) {
         console.error('Auto-save error', err);
@@ -98,26 +122,29 @@ export const App: React.FC = () => {
     }, 400);
   };
 
-  // Création à partir d'un modèle
+  // Création à partir d'un modèle pour l'utilisateur connecté
   const handleCreateFromTemplate = (type: TemplateType) => {
-    const newBoard = createBoardFromTemplate(type);
-    refreshBoards();
+    if (!currentUser) return;
+    const newBoard = createBoardFromTemplate(type, currentUser.id);
+    refreshBoards(currentUser.id);
     setActiveBoardId(newBoard.id);
   };
 
   // Duplication
   const handleDuplicate = (boardId: string) => {
-    const copy = duplicateBoard(boardId);
+    if (!currentUser) return;
+    const copy = duplicateBoard(boardId, currentUser.id);
     if (copy) {
-      refreshBoards();
+      refreshBoards(currentUser.id);
       setActiveBoardId(copy.id);
     }
   };
 
   // Suppression douce (corbeille)
   const handleDelete = (boardId: string) => {
-    softDeleteBoard(boardId);
-    refreshBoards();
+    if (!currentUser) return;
+    softDeleteBoard(boardId, currentUser.id);
+    refreshBoards(currentUser.id);
     if (activeBoardId === boardId) {
       setActiveBoardId(null);
     }
@@ -125,17 +152,31 @@ export const App: React.FC = () => {
 
   // Restauration
   const handleRestore = (boardId: string) => {
-    restoreBoard(boardId);
-    refreshBoards();
+    if (!currentUser) return;
+    restoreBoard(boardId, currentUser.id);
+    refreshBoards(currentUser.id);
   };
 
   // Suppression définitive
   const handlePermanentDelete = (boardId: string) => {
+    if (!currentUser) return;
     if (confirm('Êtes-vous sûr de vouloir supprimer définitivement ce tableau ? Cette action est irréversible.')) {
-      permanentlyDeleteBoard(boardId);
-      refreshBoards();
+      permanentlyDeleteBoard(boardId, currentUser.id);
+      refreshBoards(currentUser.id);
     }
   };
+
+  // Si aucun utilisateur n'est connecté, afficher la page de connexion / inscription
+  if (!currentUser) {
+    return (
+      <AuthPage 
+        onAuthSuccess={(user) => {
+          setCurrentUser(user);
+          refreshBoards(user.id);
+        }} 
+      />
+    );
+  }
 
   return (
     <div className="app-shell">
@@ -152,6 +193,8 @@ export const App: React.FC = () => {
         onToggle={() => setIsSidebarOpen(prev => !prev)}
         onOpenAccount={() => setIsAccountModalOpen(true)}
         onCreateFromTemplate={handleCreateFromTemplate}
+        currentUser={currentUser}
+        onLogout={handleLogout}
         counts={counts}
       />
 
@@ -165,6 +208,8 @@ export const App: React.FC = () => {
           saveStatus={saveStatus}
           theme={theme}
           onToggleTheme={toggleTheme}
+          currentUser={currentUser}
+          onLogout={handleLogout}
         />
 
         <main style={{ flex: 1 }}>
@@ -192,7 +237,8 @@ export const App: React.FC = () => {
       {isAccountModalOpen && (
         <AccountModal
           onClose={() => setIsAccountModalOpen(false)}
-          onDataReloaded={refreshBoards}
+          onDataReloaded={() => refreshBoards(currentUser.id)}
+          onLogout={handleLogout}
         />
       )}
     </div>

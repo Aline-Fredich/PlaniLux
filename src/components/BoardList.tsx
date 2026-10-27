@@ -238,7 +238,7 @@ export const BoardList: React.FC<BoardListProps> = ({
           </div>
         </div>
 
-        {/* CLASSEURS 3D EN VERRE DÉPOLI (21st.dev) */}
+        {/* CLASSEURS EN VERRE DÉPOLI */}
         {!showTrash && viewMode === 'glass' && (
           <div
             className="relative flex w-full flex-col items-center justify-center overflow-hidden rounded-2xl p-6 sm:p-10 shadow-inner"

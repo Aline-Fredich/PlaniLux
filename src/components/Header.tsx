@@ -1,7 +1,7 @@
-import React from 'react';
-import { Moon, Sun, User, CheckCircle2, CloudOff, RefreshCw, AlertCircle, Menu } from 'lucide-react';
+import { Moon, Sun, User, CheckCircle2, CloudOff, RefreshCw, AlertCircle, Menu, LogOut } from 'lucide-react';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
 import { SaveStatus } from '../services/storageService';
+import { UserAccount } from '../types';
 
 interface HeaderProps {
   currentView: 'list' | 'editor';
@@ -11,6 +11,8 @@ interface HeaderProps {
   saveStatus: SaveStatus;
   theme: 'light' | 'dark';
   onToggleTheme: () => void;
+  currentUser?: UserAccount | null;
+  onLogout?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -20,7 +22,9 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSidebar,
   saveStatus,
   theme,
-  onToggleTheme
+  onToggleTheme,
+  currentUser,
+  onLogout
 }) => {
   return (
     <header className="app-header">
@@ -83,15 +87,31 @@ export const Header: React.FC<HeaderProps> = ({
           {theme === 'dark' ? <Sun size={17} /> : <Moon size={17} />}
         </button>
 
-        {/* Bouton Compte */}
+        {/* Bouton Compte avec nom d'utilisateur réel */}
         <button
           className="btn-glass-secondary"
           onClick={onOpenAccount}
-          title="Préférences et données de compte"
+          title="Mon profil et coordonnées"
+          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
         >
           <User size={15} />
-          <span className="hidden md:inline">Compte</span>
+          <span className="hidden md:inline" style={{ fontWeight: 600 }}>
+            {currentUser?.username || 'Mon Compte'}
+          </span>
         </button>
+
+        {/* Bouton Déconnexion */}
+        {onLogout && (
+          <button
+            className="btn-ghost btn-icon"
+            onClick={onLogout}
+            title="Se déconnecter de cette session"
+            aria-label="Se déconnecter"
+            style={{ color: 'var(--danger)' }}
+          >
+            <LogOut size={16} />
+          </button>
+        )}
       </div>
     </header>
   );

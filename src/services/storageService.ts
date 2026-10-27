@@ -1,66 +1,87 @@
 import { Board, BoardShare, UserProfile, TemplateType, BoardAxis, BoardCell } from '../types';
 import { TEMPLATES_CATALOG } from '../templates/defaultTemplates';
+import { getCurrentUser } from './authService';
 
-const BOARDS_STORAGE_KEY = 'planilux_boards_v1';
 const SHARES_STORAGE_KEY = 'planilux_shares_v1';
-const PROFILE_STORAGE_KEY = 'planilux_profile_v1';
 
 export type SaveStatus = 'saved' | 'saving' | 'offline' | 'error';
 
+/**
+ * Clé de stockage cloisonnée et strictement étanche pour chaque utilisateur
+ */
+const getBoardsKey = (userId?: string): string => {
+  const uid = userId || getCurrentUser()?.id || 'anonymous';
+  return `planilux_boards_user_${uid}`;
+};
+
+/**
+ * Récupère le profil de l'utilisateur actuellement connecté
+ */
 export const getStoredProfile = (): UserProfile => {
-  try {
-    const raw = localStorage.getItem(PROFILE_STORAGE_KEY);
-    if (raw) return JSON.parse(raw);
-  } catch (e) {
-    console.warn('Failed to parse profile from localStorage', e);
+  const current = getCurrentUser();
+  if (current) {
+    return {
+      id: current.id,
+      display_name: current.username,
+      email: current.email,
+      phone: current.phone,
+      address: current.address,
+      locale: current.locale || 'fr-FR',
+      timezone: current.timezone || 'Europe/Paris',
+      created_at: current.created_at,
+      updated_at: current.updated_at
+    };
   }
-  const defaultProfile: UserProfile = {
-    id: 'user_local_main',
-    display_name: 'Alexandre Dupont',
+  return {
+    id: 'guest',
+    display_name: 'Utilisateur',
     locale: 'fr-FR',
     timezone: 'Europe/Paris',
     created_at: new Date().toISOString(),
     updated_at: new Date().toISOString()
   };
-  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(defaultProfile));
-  return defaultProfile;
 };
 
 export const saveProfile = (profile: UserProfile): void => {
   profile.updated_at = new Date().toISOString();
-  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profile));
+  // Les modifications sont gérées par authService pour l'utilisateur actif
 };
 
-export const getStoredBoards = (includeDeleted = false): Board[] => {
+/**
+ * Récupère les tableaux de l'utilisateur actif
+ * L'espace de travail est 100% VIERGE à la création du compte (aucune fausse démo codée en dur)
+ */
+export const getStoredBoards = (includeDeleted = false, userId?: string): Board[] => {
+  const key = getBoardsKey(userId);
   try {
-    const raw = localStorage.getItem(BOARDS_STORAGE_KEY);
+    const raw = localStorage.getItem(key);
     if (raw) {
       const all: Board[] = JSON.parse(raw);
       return includeDeleted ? all : all.filter(b => !b.deleted_at);
     }
   } catch (e) {
-    console.error('Error reading boards from storage', e);
+    console.error('Erreur lecture tableaux utilisateur', e);
   }
 
-  // Si premier lancement, initialiser avec les modèles du catalogue
-  const profile = getStoredProfile();
-  const initialBoards: Board[] = TEMPLATES_CATALOG.map(t => t.createDefault(profile.id));
-  localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(initialBoards));
-  return includeDeleted ? initialBoards : initialBoards.filter(b => !b.deleted_at);
+  // Nouvel utilisateur : espace vierge garanti
+  return [];
 };
 
-export const getBoardById = (id: string): Board | null => {
-  const boards = getStoredBoards(true);
+export const getBoardById = (id: string, userId?: string): Board | null => {
+  const boards = getStoredBoards(true, userId);
   return boards.find(b => b.id === id) || null;
 };
 
-export const saveBoard = (board: Board): Board => {
-  const all = getStoredBoards(true);
+export const saveBoard = (board: Board, userId?: string): Board => {
+  const uid = userId || board.owner_id || getCurrentUser()?.id || 'anonymous';
+  const key = getBoardsKey(uid);
+  const all = getStoredBoards(true, uid);
   const now = new Date().toISOString();
   const existingIdx = all.findIndex(b => b.id === board.id);
 
   const updated: Board = {
     ...board,
+    owner_id: uid,
     version: (board.version || 1) + 1,
     updated_at: now
   };
@@ -71,12 +92,13 @@ export const saveBoard = (board: Board): Board => {
     all.unshift(updated);
   }
 
-  localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(all));
+  localStorage.setItem(key, JSON.stringify(all));
   return updated;
 };
 
-export const duplicateBoard = (sourceId: string): Board | null => {
-  const source = getBoardById(sourceId);
+export const duplicateBoard = (sourceId: string, userId?: string): Board | null => {
+  const uid = userId || getCurrentUser()?.id || 'anonymous';
+  const source = getBoardById(sourceId, uid);
   if (!source) return null;
 
   const now = new Date().toISOString();
@@ -112,6 +134,7 @@ export const duplicateBoard = (sourceId: string): Board | null => {
   const copy: Board = {
     ...source,
     id: newBoardId,
+    owner_id: uid,
     title: `${source.title} (Copie)`,
     version: 1,
     created_at: now,
@@ -121,66 +144,67 @@ export const duplicateBoard = (sourceId: string): Board | null => {
     cells: newCells
   };
 
-  const all = getStoredBoards(true);
+  const key = getBoardsKey(uid);
+  const all = getStoredBoards(true, uid);
   all.unshift(copy);
-  localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(all));
+  localStorage.setItem(key, JSON.stringify(all));
   return copy;
 };
 
-export const softDeleteBoard = (id: string): void => {
-  const all = getStoredBoards(true);
+export const softDeleteBoard = (id: string, userId?: string): void => {
+  const uid = userId || getCurrentUser()?.id || 'anonymous';
+  const key = getBoardsKey(uid);
+  const all = getStoredBoards(true, uid);
   const target = all.find(b => b.id === id);
   if (target) {
     target.deleted_at = new Date().toISOString();
     target.updated_at = new Date().toISOString();
-    localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(all));
+    localStorage.setItem(key, JSON.stringify(all));
   }
 };
 
-export const restoreBoard = (id: string): void => {
-  const all = getStoredBoards(true);
+export const restoreBoard = (id: string, userId?: string): void => {
+  const uid = userId || getCurrentUser()?.id || 'anonymous';
+  const key = getBoardsKey(uid);
+  const all = getStoredBoards(true, uid);
   const target = all.find(b => b.id === id);
   if (target) {
     target.deleted_at = null;
     target.updated_at = new Date().toISOString();
-    localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(all));
+    localStorage.setItem(key, JSON.stringify(all));
   }
 };
 
-export const permanentlyDeleteBoard = (id: string): void => {
-  const all = getStoredBoards(true).filter(b => b.id !== id);
-  localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(all));
+export const permanentlyDeleteBoard = (id: string, userId?: string): void => {
+  const uid = userId || getCurrentUser()?.id || 'anonymous';
+  const key = getBoardsKey(uid);
+  const all = getStoredBoards(true, uid);
+  const remaining = all.filter(b => b.id !== id);
+  localStorage.setItem(key, JSON.stringify(remaining));
 };
 
-export const createBoardFromTemplate = (templateType: TemplateType, customTitle?: string): Board => {
-  const profile = getStoredProfile();
-  const template = TEMPLATES_CATALOG.find(t => t.type === templateType) || TEMPLATES_CATALOG[0];
-  const newBoard = template.createDefault(profile.id);
-  if (customTitle && customTitle.trim()) {
-    newBoard.title = customTitle.trim();
-  }
-  const all = getStoredBoards(true);
-  all.unshift(newBoard);
-  localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(all));
-  return newBoard;
+export const createBoardFromTemplate = (type: TemplateType, userId?: string): Board => {
+  const uid = userId || getCurrentUser()?.id || 'anonymous';
+  const template = TEMPLATES_CATALOG.find(t => t.type === type) || TEMPLATES_CATALOG[0];
+  const newBoard = template.createDefault(uid);
+  return saveBoard(newBoard, uid);
 };
 
-// Partage par lien (sécurité selon spécifications Section 7 et 8)
 export const getBoardShares = (boardId: string): BoardShare[] => {
   try {
     const raw = localStorage.getItem(SHARES_STORAGE_KEY);
-    if (!raw) return [];
-    const shares: BoardShare[] = JSON.parse(raw);
-    return shares.filter(s => s.board_id === boardId);
+    if (raw) {
+      const shares: BoardShare[] = JSON.parse(raw);
+      return shares.filter(s => s.board_id === boardId && !s.revoked_at);
+    }
   } catch (e) {
-    console.error('Error fetching shares', e);
-    return [];
+    console.error('Error reading shares', e);
   }
+  return [];
 };
 
 export const createBoardShare = (boardId: string, allowExport = true, expirationDays?: number): BoardShare => {
   const shareToken = 'shr_' + Math.random().toString(36).substring(2, 12) + Math.random().toString(36).substring(2, 12);
-  // Hash simulé pour la sécurité locale
   const tokenHash = btoa(shareToken).replace(/=/g, '');
   const now = new Date();
   
@@ -229,11 +253,14 @@ export const revokeBoardShare = (shareId: string): void => {
   }
 };
 
-// Export et Import JSON de l'ensemble des données
+// Export et Import JSON de l'ensemble des données de l'utilisateur actif
 export const exportAllDataAsJSON = (): string => {
+  const current = getCurrentUser();
+  const uid = current?.id || 'anonymous';
   const data = {
+    user: current,
     profile: getStoredProfile(),
-    boards: getStoredBoards(true),
+    boards: getStoredBoards(true, uid),
     shares: (() => {
       try {
         return JSON.parse(localStorage.getItem(SHARES_STORAGE_KEY) || '[]');
@@ -250,11 +277,10 @@ export const exportAllDataAsJSON = (): string => {
 export const importDataFromJSON = (jsonString: string): boolean => {
   try {
     const parsed = JSON.parse(jsonString);
+    const uid = getCurrentUser()?.id || 'anonymous';
+    const key = getBoardsKey(uid);
     if (parsed.boards && Array.isArray(parsed.boards)) {
-      localStorage.setItem(BOARDS_STORAGE_KEY, JSON.stringify(parsed.boards));
-    }
-    if (parsed.profile) {
-      localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(parsed.profile));
+      localStorage.setItem(key, JSON.stringify(parsed.boards));
     }
     if (parsed.shares && Array.isArray(parsed.shares)) {
       localStorage.setItem(SHARES_STORAGE_KEY, JSON.stringify(parsed.shares));
