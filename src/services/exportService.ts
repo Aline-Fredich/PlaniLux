@@ -1,0 +1,386 @@
+import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, WidthType, AlignmentType, ShadingType, BorderStyle } from 'docx';
+import jsPDF from 'jspdf';
+import { toPng } from 'html-to-image';
+import { Board, PrintSettings } from '../types';
+
+/**
+ * Nettoie une couleur hex pour docx (retire le # et vérifie 6 caractères)
+ */
+const sanitizeHex = (color?: string, defaultColor = 'FFFFFF'): string => {
+  if (!color) return defaultColor;
+  const clean = color.replace('#', '').trim();
+  if (clean.length === 3) {
+    return clean.split('').map(c => c + c).join('').toUpperCase();
+  }
+  if (clean.length === 6) {
+    return clean.toUpperCase();
+  }
+  return defaultColor;
+};
+
+/**
+ * Export au format Microsoft Word (.docx) natif et éditable
+ */
+export const exportBoardToDocx = async (board: Board, settings: PrintSettings): Promise<Blob> => {
+  const colAxes = board.axes
+    .filter(a => a.axis === 'column')
+    .sort((a, b) => a.position - b.position);
+  const rowAxes = board.axes
+    .filter(a => a.axis === 'row')
+    .sort((a, b) => a.position - b.position);
+
+  // Ligne d'en-tête (Coin supérieur gauche vide + en-têtes de colonnes)
+  const headerCells: TableCell[] = [
+    new TableCell({
+      width: { size: 2000, type: WidthType.DXA },
+      shading: { type: ShadingType.CLEAR, fill: 'F3F4F6' },
+      children: [
+        new Paragraph({
+          text: 'Horaire / Axe',
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 120, after: 120 }
+        })
+      ]
+    }),
+    ...colAxes.map(col => new TableCell({
+      width: { size: Math.max(1500, Math.floor(10000 / colAxes.length)), type: WidthType.DXA },
+      shading: { type: ShadingType.CLEAR, fill: 'E5E7EB' },
+      children: [
+        new Paragraph({
+          children: [
+            new TextRun({
+              text: col.label,
+              bold: true,
+              color: '111827'
+            })
+          ],
+          alignment: AlignmentType.CENTER,
+          spacing: { before: 120, after: 120 }
+        })
+      ]
+    }))
+  ];
+
+  const tableRows: TableRow[] = [
+    new TableRow({
+      tableHeader: settings.repeatHeaders,
+      children: headerCells
+    })
+  ];
+
+  // Lignes de contenu
+  for (const r of rowAxes) {
+    const rowCells: TableCell[] = [
+      new TableCell({
+        width: { size: 2000, type: WidthType.DXA },
+        shading: { type: ShadingType.CLEAR, fill: 'F9FAFB' },
+        children: [
+          new Paragraph({
+            children: [
+              new TextRun({
+                text: r.label,
+                bold: true,
+                color: '374151'
+              })
+            ],
+            alignment: AlignmentType.CENTER,
+            spacing: { before: 100, after: 100 }
+          })
+        ]
+      })
+    ];
+
+    for (const c of colAxes) {
+      const cellData = board.cells.find(cell => cell.row_axis_id === r.id && cell.column_axis_id === c.id);
+      const rawText = cellData?.content || '';
+      const bgColor = settings.printColors ? sanitizeHex(cellData?.background_color, 'FFFFFF') : 'FFFFFF';
+      const textColor = settings.printColors ? sanitizeHex(cellData?.text_color, '1F2937') : '1F2937';
+
+      // Split des retours à la ligne
+      const lines = rawText.split('\n');
+      const paragraphs = lines.map(line => new Paragraph({
+        children: [
+          new TextRun({
+            text: line,
+            bold: cellData?.text_style?.bold ?? false,
+            italics: cellData?.text_style?.italic ?? false,
+            color: textColor
+          })
+        ],
+        alignment: cellData?.text_style?.align === 'center' ? AlignmentType.CENTER :
+                   cellData?.text_style?.align === 'right' ? AlignmentType.RIGHT : AlignmentType.LEFT,
+        spacing: { before: 60, after: 60 }
+      }));
+
+      rowCells.push(new TableCell({
+        shading: { type: ShadingType.CLEAR, fill: bgColor },
+        borders: settings.showBorders ? undefined : {
+          top: { style: BorderStyle.NONE, size: 0, color: 'auto' },
+          bottom: { style: BorderStyle.NONE, size: 0, color: 'auto' },
+          left: { style: BorderStyle.NONE, size: 0, color: 'auto' },
+          right: { style: BorderStyle.NONE, size: 0, color: 'auto' },
+        },
+        children: paragraphs.length > 0 ? paragraphs : [new Paragraph('')]
+      }));
+    }
+
+    tableRows.push(new TableRow({ children: rowCells }));
+  }
+
+  const docTable = new Table({
+    rows: tableRows,
+    width: { size: 100, type: WidthType.PERCENTAGE }
+  });
+
+  const childrenNodes = [
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: board.title,
+          bold: true,
+          size: 32,
+          color: '1E3A8A'
+        })
+      ],
+      spacing: { after: 200 }
+    }),
+    new Paragraph({
+      children: [
+        new TextRun({
+          text: `Généré le ${new Date().toLocaleDateString('fr-FR', { dateStyle: 'full' })} • Planilux`,
+          italics: true,
+          size: 18,
+          color: '6B7280'
+        })
+      ],
+      spacing: { after: 300 }
+    }),
+    docTable
+  ];
+
+  if (settings.includeNotes && board.settings.notes) {
+    childrenNodes.push(
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: '\nNotes & Recommandations :',
+            bold: true,
+            size: 22,
+            color: '374151'
+          })
+        ],
+        spacing: { before: 300, after: 100 }
+      }),
+      new Paragraph({
+        children: [
+          new TextRun({
+            text: board.settings.notes,
+            italics: true,
+            size: 20,
+            color: '4B5563'
+          })
+        ]
+      })
+    );
+  }
+
+  const doc = new Document({
+    sections: [{
+      properties: {
+        page: {
+          margin: {
+            top: settings.margins === 'compact' ? 720 : settings.margins === 'none' ? 360 : 1440,
+            bottom: settings.margins === 'compact' ? 720 : settings.margins === 'none' ? 360 : 1440,
+            left: settings.margins === 'compact' ? 720 : settings.margins === 'none' ? 360 : 1440,
+            right: settings.margins === 'compact' ? 720 : settings.margins === 'none' ? 360 : 1440,
+          }
+        }
+      },
+      children: childrenNodes
+    }]
+  });
+
+  return await Packer.toBlob(doc);
+};
+
+/**
+ * Export au format PDF haute fidélité avec jsPDF
+ */
+export const exportBoardToPdf = (board: Board, settings: PrintSettings): Blob => {
+  const isLandscape = settings.orientation === 'landscape';
+  
+  // Résolution personnalisée selon format cible
+  let pdfFormat: string | [number, number] = 'a4';
+  let pdfOrientation: 'portrait' | 'landscape' = isLandscape ? 'landscape' : 'portrait';
+
+  if (settings.format === 'phone_wallpaper') {
+    // Format Smartphone (Ratio 9:16 vertical)
+    pdfFormat = [108, 192];
+    pdfOrientation = 'portrait';
+  } else if (settings.format === 'desktop_wallpaper') {
+    // Format Fond d'écran Bureau (Ratio 16:9 paysage)
+    pdfFormat = [192, 108];
+    pdfOrientation = 'landscape';
+  } else if (settings.format === 'tablet') {
+    pdfFormat = isLandscape ? [267, 200] : [200, 267];
+  } else if (settings.format === 'Letter') {
+    pdfFormat = 'letter';
+  } else {
+    pdfFormat = 'a4';
+  }
+
+  const doc = new jsPDF({
+    orientation: pdfOrientation,
+    unit: 'mm',
+    format: pdfFormat
+  });
+
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+
+  const margin = settings.margins === 'compact' ? 6 : settings.margins === 'none' ? 3 : 12;
+  let currentY = margin + 6;
+
+  // Facteur d'échelle et de densité
+  const scale = (settings.cellScale || 100) / 100;
+  const densityMultiplier = settings.density === 'compact' ? 0.75 : settings.density === 'spacious' ? 1.35 : 1.0;
+
+  // Titre
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(Math.round(14 * scale));
+  doc.setTextColor(30, 58, 138);
+  doc.text(board.title, margin, currentY);
+  currentY += Math.round(5 * scale);
+
+  // Sous-titre date
+  doc.setFont('Helvetica', 'italic');
+  doc.setFontSize(Math.round(8 * scale));
+  doc.setTextColor(107, 114, 128);
+  doc.text(`Document généré le ${new Date().toLocaleDateString('fr-FR')} • Planilux`, margin, currentY);
+  currentY += Math.round(6 * scale);
+
+  const colAxes = board.axes.filter(a => a.axis === 'column').sort((a, b) => a.position - b.position);
+  const rowAxes = board.axes.filter(a => a.axis === 'row').sort((a, b) => a.position - b.position);
+
+  const availableWidth = pageWidth - (margin * 2);
+  const timeColWidth = Math.min(35, availableWidth * 0.2);
+  const dataColWidth = (availableWidth - timeColWidth) / colAxes.length;
+
+  // Hauteur de ligne dynamique tenant compte de la densité et du zoom
+  const baseCalculated = (pageHeight - currentY - margin - 20) / (rowAxes.length + 1);
+  const rowHeight = Math.max(6, Math.min(32, baseCalculated * densityMultiplier * scale));
+
+  // En-tête de table
+  doc.setFillColor(243, 244, 246);
+  doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(55, 65, 81);
+  doc.text('Horaires', margin + (timeColWidth / 2), currentY + (rowHeight / 2) + 2, { align: 'center' });
+
+  colAxes.forEach((col, idx) => {
+    const x = margin + timeColWidth + (idx * dataColWidth);
+    doc.setFillColor(229, 231, 235);
+    doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
+    doc.rect(x, currentY, dataColWidth, rowHeight, 'S');
+    doc.setTextColor(17, 24, 39);
+    doc.text(col.label, x + (dataColWidth / 2), currentY + (rowHeight / 2) + 2, { align: 'center' });
+  });
+
+  currentY += rowHeight;
+
+  // Lignes de données
+  rowAxes.forEach(row => {
+    // Colonne d'axe horaire/étiquette
+    doc.setFillColor(249, 250, 251);
+    doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
+    doc.rect(margin, currentY, timeColWidth, rowHeight, 'S');
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(7.5);
+    doc.setTextColor(55, 65, 81);
+    
+    // Si libellé long, tronquer ou diviser
+    const splitLabel = doc.splitTextToSize(row.label, timeColWidth - 4);
+    doc.text(splitLabel, margin + (timeColWidth / 2), currentY + (rowHeight / 2), { align: 'center' });
+
+    // Cellules
+    colAxes.forEach((col, colIdx) => {
+      const x = margin + timeColWidth + (colIdx * dataColWidth);
+      const cellData = board.cells.find(c => c.row_axis_id === row.id && c.column_axis_id === col.id);
+
+      if (cellData && cellData.background_color && settings.printColors) {
+        const hex = cellData.background_color.replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16) || 255;
+        const g = parseInt(hex.substring(2, 4), 16) || 255;
+        const b = parseInt(hex.substring(4, 6), 16) || 255;
+        doc.setFillColor(r, g, b);
+        doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
+      }
+
+      if (settings.showBorders) {
+        doc.setDrawColor(209, 213, 219);
+        doc.rect(x, currentY, dataColWidth, rowHeight, 'S');
+      }
+
+      if (cellData && cellData.content) {
+        doc.setFont('Helvetica', cellData.text_style?.bold ? 'bold' : 'normal');
+        doc.setFontSize(7);
+        doc.setTextColor(31, 41, 55);
+
+        const lines = doc.splitTextToSize(cellData.content, dataColWidth - 3);
+        const textY = currentY + 4;
+        doc.text(lines.slice(0, 4), x + (dataColWidth / 2), textY, { align: 'center' });
+      }
+    });
+
+    currentY += rowHeight;
+  });
+
+  // Notes de bas de page si présentes
+  if (settings.includeNotes && board.settings.notes && currentY < pageHeight - 15) {
+    currentY += 6;
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.setTextColor(55, 65, 81);
+    doc.text('Notes :', margin, currentY);
+    currentY += 4;
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(75, 85, 99);
+    const splitNotes = doc.splitTextToSize(board.settings.notes, availableWidth);
+    doc.text(splitNotes, margin, currentY);
+  }
+
+  return doc.output('blob');
+};
+
+/**
+ * Déclenche le téléchargement d'un Blob sous un nom de fichier propre
+ */
+export const downloadFile = (blob: Blob, filename: string): void => {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+};
+
+/**
+ * Exporte un élément DOM sous forme d'image PNG haute fidélité (pour fond d'écran ou partage)
+ */
+export const exportElementToPng = async (element: HTMLElement, filename: string): Promise<void> => {
+  const dataUrl = await toPng(element, {
+    quality: 1.0,
+    pixelRatio: 2.5, // 2.5x pour un rendu ultra net sur écran Retina et Smartphone
+    cacheBust: true
+  });
+  const a = document.createElement('a');
+  a.href = dataUrl;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+};

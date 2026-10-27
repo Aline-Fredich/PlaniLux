@@ -1,0 +1,917 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ==========================================================================
+   Planilux - Design System & Planning Studio
+   ========================================================================== */
+
+:root {
+  --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Outfit', var(--font-sans);
+
+  /* Thème Verre Dépoli Clair (Milk Glass) */
+  --bg-primary: #f0f4f9;
+  --bg-secondary: rgba(255, 255, 255, 0.72);
+  --bg-tertiary: rgba(240, 244, 250, 0.6);
+  --bg-glass-card: rgba(255, 255, 255, 0.65);
+  --bg-glass-overlay: rgba(15, 23, 42, 0.45);
+
+  --glass-border: rgba(255, 255, 255, 0.65);
+  --glass-border-subtle: rgba(255, 255, 255, 0.4);
+  --glass-specular: radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0) 65%);
+  --glass-blur: blur(24px) saturate(1.6);
+
+  --text-primary: #111827;
+  --text-secondary: #4b5563;
+  --text-muted: #9ca3af;
+  --text-inverse: #ffffff;
+
+  --border-light: rgba(229, 231, 235, 0.6);
+  --border-medium: rgba(209, 213, 219, 0.8);
+  --border-focus: #3b82f6;
+
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --primary-light: rgba(219, 234, 254, 0.65);
+
+  --success: #10b981;
+  --success-bg: rgba(209, 250, 229, 0.7);
+  --success-text: #065f46;
+
+  --warning: #f59e0b;
+  --warning-bg: rgba(254, 243, 199, 0.7);
+  --warning-text: #92400e;
+
+  --danger: #ef4444;
+  --danger-bg: rgba(254, 226, 226, 0.7);
+  --danger-text: #991b1b;
+
+  --radius-sm: 8px;
+  --radius-md: 14px;
+  --radius-lg: 20px;
+  --radius-full: 9999px;
+
+  --shadow-glass: inset 0 1px 0 rgba(255, 255, 255, 0.9), 0 0 0 0.5px rgba(0, 0, 0, 0.08), 0 18px 36px -12px rgba(15, 23, 42, 0.15);
+  --shadow-glass-elevated: inset 0 1px 0 rgba(255, 255, 255, 0.95), 0 0 0 1px rgba(0, 0, 0, 0.06), 0 28px 56px -16px rgba(15, 23, 42, 0.25);
+}
+
+[data-theme='dark'] {
+  /* Thème Verre Fumé Sombre (Smoked Glass) */
+  --bg-primary: #0a0d14;
+  --bg-secondary: rgba(20, 25, 38, 0.75);
+  --bg-tertiary: rgba(30, 38, 56, 0.6);
+  --bg-glass-card: rgba(18, 23, 36, 0.7);
+  --bg-glass-overlay: rgba(0, 0, 0, 0.7);
+
+  --glass-border: rgba(255, 255, 255, 0.14);
+  --glass-border-subtle: rgba(255, 255, 255, 0.08);
+  --glass-specular: radial-gradient(120% 90% at 50% 0%, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0) 65%);
+
+  --text-primary: #f9fafb;
+  --text-secondary: #cbd5e1;
+  --text-muted: #64748b;
+
+  --border-light: rgba(51, 65, 85, 0.6);
+  --border-medium: rgba(71, 85, 105, 0.7);
+  --border-focus: #60a5fa;
+
+  --primary: #3b82f6;
+  --primary-hover: #60a5fa;
+  --primary-light: rgba(30, 58, 138, 0.65);
+
+  --shadow-glass: inset 0 1px 0 rgba(255, 255, 255, 0.14), 0 0 0 0.5px rgba(255, 255, 255, 0.08), 0 20px 40px -12px rgba(0, 0, 0, 0.7);
+  --shadow-glass-elevated: inset 0 1px 0 rgba(255, 255, 255, 0.2), 0 0 0 1px rgba(255, 255, 255, 0.12), 0 32px 64px -16px rgba(0, 0, 0, 0.85);
+}
+
+/* Base */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  min-height: 100vh;
+  /* Fond texturé discret pour magnifier la translucidité du verre */
+  background-image: 
+    radial-gradient(circle at 10% 20%, rgba(59, 130, 246, 0.06) 0%, transparent 40%),
+    radial-gradient(circle at 90% 80%, rgba(99, 102, 241, 0.06) 0%, transparent 40%);
+  background-attachment: fixed;
+}
+
+/* ==========================================================================
+   Boutons Glass Spéculaires
+   ========================================================================== */
+
+/* Bouton Noir Iconique avec reflets spéculaires */
+.btn-glass-black {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding: 0.65rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 550;
+  letter-spacing: -0.01em;
+  color: #ffffff !important;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  background: radial-gradient(120% 90% at 50% 0%, #3a3a3f 0%, #161618 55%, #080809 100%);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.28),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(0, 0, 0, 0.75),
+    0 12px 20px -8px rgba(0, 0, 0, 0.5),
+    0 3px 6px -2px rgba(0, 0, 0, 0.35);
+  transition: transform 0.28s cubic-bezier(.34, 1.36, .5, 1), box-shadow 0.28s ease, filter 0.2s ease;
+  user-select: none;
+}
+
+[data-theme='dark'] .btn-glass-black {
+  background: radial-gradient(120% 90% at 50% 0%, #ffffff 0%, #e2e2e6 55%, #c8c8cc 100%);
+  color: #0f172a !important;
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -3px 8px rgba(0, 0, 0, 0.15),
+    0 0 0 1px rgba(0, 0, 0, 0.4),
+    0 14px 24px -8px rgba(0, 0, 0, 0.7);
+}
+
+.btn-glass-black:hover {
+  transform: translateY(-2px);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.45),
+    inset 0 -3px 8px rgba(0, 0, 0, 0.8),
+    0 0 0 1px rgba(0, 0, 0, 0.85),
+    0 16px 28px -8px rgba(0, 0, 0, 0.65);
+}
+
+.btn-glass-black:active {
+  transform: translateY(0) scale(0.96);
+  transition-duration: 0.1s;
+}
+
+.btn-glass-black:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 3px;
+}
+
+/* Bouton Secondaire en Verre Dépoli Givré */
+.btn-glass-secondary {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(240, 242, 248, 0.75) 100%);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    inset 0 -1.5px 3px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.12),
+    0 8px 16px -6px rgba(15, 23, 42, 0.15);
+  transition: transform 0.25s cubic-bezier(.34, 1.36, .5, 1), box-shadow 0.25s ease, background 0.2s ease;
+  user-select: none;
+}
+
+[data-theme='dark'] .btn-glass-secondary {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.06) 100%);
+  color: #f8fafc;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.24),
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 8px 18px -6px rgba(0, 0, 0, 0.5);
+}
+
+.btn-glass-secondary:hover {
+  transform: translateY(-1.5px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 1) 0%, rgba(245, 247, 252, 0.9) 100%);
+  box-shadow:
+    inset 0 1px 0 #ffffff,
+    0 0 0 1px rgba(0, 0, 0, 0.18),
+    0 12px 22px -6px rgba(15, 23, 42, 0.2);
+}
+
+.btn-glass-secondary:active {
+  transform: translateY(0) scale(0.97);
+}
+
+.btn-glass-secondary:focus-visible {
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Boutons Utilitaires Standard */
+.btn-primary {
+  @apply btn-glass-black;
+}
+
+.btn-secondary {
+  @apply btn-glass-secondary;
+}
+
+.btn-ghost {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.5rem 0.8rem;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s ease;
+}
+
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.25);
+  color: var(--text-primary);
+}
+
+.btn-danger {
+  all: unset;
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.8rem;
+  font-size: 0.825rem;
+  color: var(--danger);
+  background: var(--danger-bg);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.btn-danger:hover {
+  background: rgba(254, 202, 202, 0.8);
+}
+
+.btn-icon {
+  padding: 0.5rem;
+  border-radius: var(--radius-md);
+  aspect-ratio: 1;
+}
+
+/* ==========================================================================
+   Structure Globale de l'Application (App Layout & Sidebar)
+   ========================================================================== */
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+  position: relative;
+}
+
+/* Barre Latérale en Verre Dépoli (Glass Sidebar) */
+.glass-sidebar {
+  width: 270px;
+  background: var(--bg-secondary);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-right: 1px solid var(--glass-border);
+  box-shadow: 4px 0 24px -8px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  position: fixed;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 50;
+  transition: width 0.3s cubic-bezier(.2, .8, .2, 1), transform 0.3s ease;
+}
+
+.glass-sidebar.collapsed {
+  width: 72px;
+}
+
+.sidebar-header {
+  height: 64px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1rem;
+  border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.sidebar-logo {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  overflow: hidden;
+}
+
+.sidebar-logo-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #3b82f6, #6366f1);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
+  flex-shrink: 0;
+}
+
+.sidebar-logo-text {
+  display: flex;
+  flex-direction: column;
+}
+
+.logo-title {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+  color: var(--text-primary);
+  white-space: nowrap;
+}
+
+.logo-badge-pill {
+  font-size: 0.65rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--primary);
+  letter-spacing: 0.05em;
+}
+
+.sidebar-toggle-btn {
+  all: unset;
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-muted);
+  background: var(--bg-tertiary);
+  transition: all 0.2s ease;
+}
+
+.sidebar-toggle-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.sidebar-action-box {
+  padding: 1rem;
+}
+
+.sidebar-menu {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.sidebar-section-title {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  padding: 0.5rem 0.5rem 0.2rem 0.5rem;
+}
+
+.sidebar-nav-item {
+  all: unset;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.65rem 0.85rem;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: 0.88rem;
+  font-weight: 500;
+  transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.28s cubic-bezier(0.16, 1, 0.3, 1), background 0.2s ease, color 0.2s ease;
+  user-select: none;
+  position: relative;
+}
+
+.sidebar-nav-item:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  transform: translateX(4px) translateY(-1px);
+  box-shadow: 0 8px 18px -4px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.sidebar-nav-item.active {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.18) 0%, rgba(99, 102, 241, 0.18) 100%);
+  color: var(--primary);
+  font-weight: 600;
+  transform: translateX(4px);
+  box-shadow: 0 10px 22px -5px rgba(37, 99, 235, 0.25), inset 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.nav-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.nav-badge {
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.15rem 0.45rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+}
+
+.nav-badge.danger {
+  background: var(--danger-bg);
+  color: var(--danger);
+}
+
+.sidebar-separator {
+  height: 1px;
+  background: var(--glass-border-subtle);
+  margin: 0.6rem 0.25rem;
+}
+
+.sidebar-footer {
+  padding: 1rem;
+  border-top: 1px solid var(--glass-border-subtle);
+}
+
+.sidebar-footer-card {
+  background: var(--bg-tertiary);
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: var(--radius-md);
+  padding: 0.75rem;
+}
+
+.footer-card-tag {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  color: var(--primary);
+  letter-spacing: 0.05em;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.footer-card-text {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.sidebar-overlay {
+  display: none;
+}
+
+/* Zone Principale de Contenu */
+.main-wrapper {
+  flex: 1;
+  margin-left: 270px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  transition: margin-left 0.3s cubic-bezier(.2, .8, .2, 1);
+}
+
+.main-wrapper.sidebar-collapsed {
+  margin-left: 72px;
+}
+
+/* ==========================================================================
+   En-tête Planilux (Header en Verre Dépoli)
+   ========================================================================== */
+
+.app-header {
+  height: 64px;
+  background: var(--bg-secondary);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 1.5rem;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+}
+
+.header-status-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.8rem;
+  padding: 0.35rem 0.75rem;
+  border-radius: var(--radius-full);
+  background: var(--bg-tertiary);
+  border: 1px solid var(--glass-border-subtle);
+  color: var(--text-secondary);
+}
+
+/* ==========================================================================
+   Tableau & Grille en Verre (Glass Table)
+   ========================================================================== */
+
+/* Conteneur avec système de mouvement et fond sombre immersif */
+.planner-table-container {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+  border-radius: var(--radius-lg);
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.planner-table-container::before {
+  content: '';
+  position: absolute;
+  inset: -20px;
+  background: radial-gradient(ellipse at 50% 50%, rgba(15, 23, 42, 0.22) 0%, rgba(15, 23, 42, 0.05) 50%, transparent 75%);
+  border-radius: calc(var(--radius-lg) + 16px);
+  z-index: 0;
+  opacity: 0.5;
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  transform: scale(0.96);
+}
+
+[data-theme='dark'] .planner-table-container::before {
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.65) 0%, rgba(0, 0, 0, 0.25) 50%, transparent 75%);
+}
+
+.planner-table-container:hover,
+.planner-table-container:focus-within {
+  transform: translateY(-6px);
+  box-shadow: 0 26px 52px -14px rgba(0, 0, 0, 0.35), 0 0 0 1px rgba(255, 255, 255, 0.35);
+}
+
+.planner-table-container:hover::before,
+.planner-table-container:focus-within::before {
+  opacity: 1;
+  transform: scale(1.03);
+}
+
+.planner-table-glass {
+  position: relative;
+  z-index: 1;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: var(--bg-glass-card);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass-elevated);
+  overflow: hidden;
+  margin: 0 auto;
+}
+
+.planner-table-glass tbody tr {
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), background-color 0.2s ease, box-shadow 0.22s ease;
+  position: relative;
+}
+
+.planner-table-glass tbody tr:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  z-index: 4;
+}
+
+.planner-table-glass th, .planner-table-glass td {
+  border-right: 1px solid var(--border-light);
+  border-bottom: 1px solid var(--border-light);
+  box-sizing: border-box;
+}
+
+.planner-table-glass th {
+  background: var(--bg-secondary);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.75rem 0.5rem;
+  user-select: none;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.planner-table-glass .corner-header {
+  left: 0;
+  z-index: 25;
+  background: var(--bg-secondary);
+  min-width: 140px;
+}
+
+.planner-table-glass .row-header {
+  position: sticky;
+  left: 0;
+  z-index: 15;
+  background: var(--bg-secondary);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 0.5rem;
+  min-width: 140px;
+}
+
+.planner-cell {
+  padding: 0.65rem;
+  min-width: 130px;
+  min-height: 55px;
+  vertical-align: top;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.22s ease, background 0.2s ease;
+  white-space: pre-wrap;
+  background: rgba(255, 255, 255, 0.45);
+  position: relative;
+}
+
+[data-theme='dark'] .planner-cell {
+  background: rgba(20, 26, 40, 0.45);
+}
+
+.planner-cell:hover {
+  background: rgba(255, 255, 255, 0.85) !important;
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 8px 18px -4px rgba(0, 0, 0, 0.2), inset 0 0 0 2px var(--primary);
+  z-index: 6;
+}
+
+[data-theme='dark'] .planner-cell:hover {
+  background: rgba(30, 42, 65, 0.85) !important;
+  box-shadow: 0 8px 20px -4px rgba(0, 0, 0, 0.6), inset 0 0 0 2px var(--primary);
+}
+
+.planner-cell.selected {
+  transform: translateY(-2px) scale(1.01);
+  box-shadow: 0 10px 24px -4px rgba(37, 99, 235, 0.35), inset 0 0 0 2.5px var(--primary) !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+  z-index: 7;
+}
+
+[data-theme='dark'] .planner-cell.selected {
+  background: rgba(35, 48, 75, 0.95) !important;
+  box-shadow: 0 10px 24px -4px rgba(37, 99, 235, 0.5), inset 0 0 0 2.5px var(--primary) !important;
+}
+
+/* Cartes modèles avec mouvement et profondeur */
+.template-card-motion {
+  background: var(--bg-glass-card);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  box-shadow: var(--shadow-glass);
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.3s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
+  position: relative;
+}
+
+.template-card-motion:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.26), 0 0 0 1px rgba(37, 99, 235, 0.3);
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+/* ==========================================================================
+   Modales en Verre Givré (Glass Modals)
+   ========================================================================== */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: var(--bg-glass-overlay);
+  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  z-index: 60;
+  animation: fadeIn 0.2s ease;
+}
+
+.modal-card {
+  background: var(--bg-secondary);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-glass-elevated);
+  max-width: 600px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--glass-border);
+  animation: slideUp 0.25s cubic-bezier(.2, .8, .2, 1);
+}
+
+.modal-card.print-modal {
+  max-width: 960px;
+  width: 95vw;
+}
+
+.print-preview-box {
+  background: var(--bg-tertiary);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: auto;
+  min-height: 380px;
+  border: 1px solid var(--border-light);
+}
+
+.print-page-sheet {
+  background: #ffffff;
+  color: #111827;
+  padding: 1.5rem;
+  box-shadow: 0 16px 36px -10px rgba(0, 0, 0, 0.25), 0 0 0 1px rgba(0, 0, 0, 0.08);
+  border-radius: 6px;
+  transition: all 0.3s ease;
+  width: 100%;
+  max-width: 720px;
+}
+
+/* Format Fond d'écran Smartphone 9:16 (Feuille épurée sans châssis factice) */
+.wallpaper-phone-frame {
+  max-width: 360px !important;
+  aspect-ratio: 9 / 16;
+  border-radius: 16px !important;
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.25) !important;
+  padding: 1.25rem !important;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.wallpaper-desktop-frame {
+  max-width: 780px !important;
+  aspect-ratio: 16 / 9;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 30px -8px rgba(0, 0, 0, 0.25) !important;
+  padding: 1.5rem !important;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.modal-header {
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid var(--glass-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-title {
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.modal-body {
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.modal-footer {
+  padding: 1rem 1.5rem;
+  border-top: 1px solid var(--glass-border-subtle);
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+  background: var(--bg-tertiary);
+}
+
+/* ==========================================================================
+   Panneau Latéral des Propriétés de Cellule (Glass Properties Panel)
+   ========================================================================== */
+
+.properties-panel {
+  width: 320px;
+  background: var(--bg-secondary);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-left: 1px solid var(--glass-border);
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 1.25rem;
+  gap: 1.25rem;
+  box-shadow: -4px 0 20px -8px rgba(15, 23, 42, 0.1);
+  z-index: 30;
+}
+
+/* ==========================================================================
+   Animations & Responsive Media Queries
+   ========================================================================== */
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideUp {
+  from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+/* Responsivité Mobile Complète (< 1024px) */
+@media (max-width: 1024px) {
+  .glass-sidebar {
+    transform: translateX(-100%);
+    width: 260px !important;
+  }
+
+  .glass-sidebar.open {
+    transform: translateX(0);
+  }
+
+  .sidebar-overlay.active {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.5);
+    -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
+    z-index: 45;
+  }
+
+  .main-wrapper,
+  .main-wrapper.sidebar-collapsed {
+    margin-left: 0 !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding: 0 0.75rem;
+  }
+
+  .properties-panel {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    width: 100%;
+    max-height: 55vh;
+    border-left: none;
+    border-top: 1px solid var(--glass-border);
+    border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  }
+
+  .btn-glass-black, .btn-glass-secondary {
+    padding: 0.5rem 0.85rem;
+    font-size: 0.825rem;
+  }
+
+  .planner-cell {
+    min-width: 100px;
+    font-size: 0.75rem;
+  }
+}
