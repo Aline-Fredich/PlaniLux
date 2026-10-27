@@ -1,6 +1,7 @@
 import { Board, BoardShare, UserProfile, TemplateType, BoardAxis, BoardCell } from '../types';
 import { TEMPLATES_CATALOG } from '../templates/defaultTemplates';
 import { getCurrentUser } from './authService';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 const SHARES_STORAGE_KEY = 'planilux_shares_v1';
 
@@ -93,7 +94,56 @@ export const saveBoard = (board: Board, userId?: string): Board => {
   }
 
   localStorage.setItem(key, JSON.stringify(all));
+
+  // Synchronisation asynchrone avec Supabase
+  if (isSupabaseConfigured && uid !== 'anonymous') {
+    supabase.from('planilux_boards').upsert({
+      id: updated.id,
+      user_id: uid,
+      title: updated.title,
+      subtitle: updated.settings?.notes || '',
+      orientation: 'portrait',
+      theme: updated.settings?.themeColor || 'indigo',
+      layout_type: updated.template_type || 'weekly-5d',
+      data: updated,
+      updated_at: updated.updated_at
+    }).then(({ error }) => {
+      if (error) console.warn('Supabase boards upsert info:', error.message);
+    });
+  }
+
   return updated;
+};
+
+/**
+ * Synchronise les emplois du temps depuis Supabase
+ */
+export const syncBoardsFromCloud = async (userId: string): Promise<Board[]> => {
+  if (!isSupabaseConfigured || !userId || userId === 'anonymous') {
+    return getStoredBoards(false, userId);
+  }
+  try {
+    const { data, error } = await supabase
+      .from('planilux_boards')
+      .select('*')
+      .eq('user_id', userId);
+
+    if (!error && data && data.length > 0) {
+      const cloudBoards: Board[] = data.map((row: any) => ({
+        ...row.data,
+        id: row.id,
+        owner_id: row.user_id,
+        title: row.title,
+        updated_at: row.updated_at
+      }));
+      const key = getBoardsKey(userId);
+      localStorage.setItem(key, JSON.stringify(cloudBoards));
+      return cloudBoards;
+    }
+  } catch (e) {
+    console.warn('Sync boards cloud error:', e);
+  }
+  return getStoredBoards(false, userId);
 };
 
 export const duplicateBoard = (sourceId: string, userId?: string): Board | null => {
@@ -181,6 +231,12 @@ export const permanentlyDeleteBoard = (id: string, userId?: string): void => {
   const all = getStoredBoards(true, uid);
   const remaining = all.filter(b => b.id !== id);
   localStorage.setItem(key, JSON.stringify(remaining));
+
+  if (isSupabaseConfigured && uid !== 'anonymous') {
+    supabase.from('planilux_boards').delete().eq('id', id).then(({ error }) => {
+      if (error) console.warn('Supabase delete info:', error.message);
+    });
+  }
 };
 
 export const createBoardFromTemplate = (type: TemplateType, userId?: string): Board => {

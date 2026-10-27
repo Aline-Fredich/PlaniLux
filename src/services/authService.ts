@@ -1,4 +1,5 @@
 import { UserAccount } from '../types';
+import { supabase, isSupabaseConfigured } from './supabaseClient';
 
 const USERS_DB_KEY = 'planilux_users_db_v1';
 const SESSION_KEY = 'planilux_current_session_v1';
@@ -110,6 +111,24 @@ export const registerUser = (data: RegisterData): { success: boolean; user?: Use
   saveUsers(users);
   setSession(newUser);
 
+  // Synchronisation avec la base Supabase
+  if (isSupabaseConfigured) {
+    supabase.from('planilux_users').insert({
+      id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      password_hash: newUser.password,
+      phone: newUser.phone,
+      address: newUser.address,
+      locale: newUser.locale,
+      timezone: newUser.timezone,
+      created_at: newUser.created_at,
+      updated_at: newUser.updated_at
+    }).then(({ error }) => {
+      if (error) console.warn('Supabase users sync info:', error.message);
+    });
+  }
+
   return { success: true, user: newUser };
 };
 
@@ -134,6 +153,56 @@ export const loginUser = (identifier: string, password: string): { success: bool
 
   setSession(found);
   return { success: true, user: found };
+};
+
+/**
+ * Connexion asynchrone avec fallback cloud Supabase
+ */
+export const loginUserAsync = async (identifier: string, password: string): Promise<{ success: boolean; user?: UserAccount; error?: string }> => {
+  const localRes = loginUser(identifier, password);
+  if (localRes.success) return localRes;
+
+  if (isSupabaseConfigured) {
+    try {
+      const cleanId = identifier.trim().toLowerCase();
+      const { data, error } = await supabase
+        .from('planilux_users')
+        .select('*')
+        .or(`email.ilike.${cleanId},username.ilike.${cleanId}`)
+        .limit(1);
+
+      if (!error && data && data.length > 0) {
+        const u = data[0];
+        if (u.password_hash === password) {
+          const userAccount: UserAccount = {
+            id: u.id,
+            username: u.username,
+            email: u.email,
+            password: u.password_hash,
+            phone: u.phone || '',
+            address: u.address || '',
+            locale: u.locale || 'fr-FR',
+            timezone: u.timezone || 'Europe/Paris',
+            created_at: u.created_at,
+            updated_at: u.updated_at
+          };
+          const users = getAllUsers();
+          if (!users.some(ex => ex.id === userAccount.id)) {
+            users.push(userAccount);
+            saveUsers(users);
+          }
+          setSession(userAccount);
+          return { success: true, user: userAccount };
+        } else {
+          return { success: false, error: "Mot de passe incorrect." };
+        }
+      }
+    } catch (e) {
+      console.warn('Supabase cloud fallback error:', e);
+    }
+  }
+
+  return localRes;
 };
 
 /**

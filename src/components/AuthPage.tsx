@@ -12,7 +12,7 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
-import { registerUser, loginUser } from '../services/authService';
+import { registerUser, loginUserAsync } from '../services/authService';
 import { UserAccount } from '../types';
 
 interface AuthPageProps {
@@ -69,13 +69,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
     }
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setIsLoading(true);
 
     try {
-      const result = loginUser(loginForm.identifier, loginForm.password);
+      const result = await loginUserAsync(loginForm.identifier, loginForm.password);
 
       if (!result.success || !result.user) {
         setErrorMessage(result.error || "Identifiants invalides.");
