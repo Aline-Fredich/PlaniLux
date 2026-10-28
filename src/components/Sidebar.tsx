@@ -61,10 +61,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {/* En-tête de la Sidebar */}
         <div className="sidebar-header">
           <div className="sidebar-logo">
-            <PlaniluxLogo size={30} />
+            <PlaniluxLogo size={36} />
             {isOpen && (
               <div className="sidebar-logo-text">
-                <span className="logo-title">Planilux</span>
+                <span className="logo-title font-extrabold tracking-tight">Plani<span style={{ color: '#0284c7' }}>Lux</span></span>
                 <span className="logo-badge-pill">Planning Studio</span>
               </div>
             )}

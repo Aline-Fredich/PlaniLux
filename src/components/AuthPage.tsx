@@ -124,11 +124,11 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
       >
         {/* En-tête avec Logo Officiel Planilux */}
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
-          <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: '0.75rem' }}>
-            <PlaniluxLogo size={46} showText={false} />
+          <div style={{ display: 'inline-flex', justifyContent: 'center', marginBottom: '1rem' }}>
+            <PlaniluxLogo size={76} showText={false} />
           </div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: 700, letterSpacing: '-0.025em', color: 'var(--text-primary)', margin: 0 }}>
-            Planilux
+          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: 800, letterSpacing: '-0.03em', color: 'var(--text-primary)', margin: 0 }}>
+            Plani<span style={{ color: '#0284c7' }}>Lux</span>
           </h1>
           <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '0.35rem' }}>
             {mode === 'register' 

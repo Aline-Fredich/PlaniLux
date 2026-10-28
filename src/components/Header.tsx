@@ -43,10 +43,12 @@ export const Header: React.FC<HeaderProps> = ({
           <Menu size={18} />
         </button>
 
-        <div className="logo-group" onClick={onNavigateHome} title="Retour à l'accueil Planilux" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-          <PlaniluxLogo size={30} />
+        <div className="logo-group" onClick={onNavigateHome} title="Retour à l'accueil Planilux" style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          <PlaniluxLogo size={36} />
           <div>
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.2rem', color: 'var(--text-primary)' }}>Planilux</span>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: '1.25rem', letterSpacing: '-0.025em', color: 'var(--text-primary)' }}>
+              Plani<span style={{ color: '#0284c7' }}>Lux</span>
+            </span>
           </div>
         </div>
       </div>

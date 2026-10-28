@@ -3,6 +3,7 @@ import { Search, Plus, Copy, Trash2, RotateCcw, Calendar, Clock, LayoutGrid, Sun
 import { Board, TemplateType } from '../types';
 import { TEMPLATES_CATALOG } from '../templates/defaultTemplates';
 import GlassFolder, { FolderFile } from '@/components/ui/glass-folder-cards';
+import { PlaniluxLogo } from './ui/PlaniluxLogo';
 
 interface BoardListProps {
   boards: Board[];
@@ -111,17 +112,23 @@ export const BoardList: React.FC<BoardListProps> = ({
           overflow: 'hidden'
         }}
       >
-        <div style={{ position: 'relative', zIndex: 2 }}>
-          <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.75rem', borderRadius: 'var(--radius-full)', background: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.75rem' }}>
-            <Sparkles size={14} />
-            <span>Studio de Planification & Impression</span>
+        <div style={{ position: 'relative', zIndex: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1.5rem', flexWrap: 'wrap' }}>
+          <div style={{ flex: 1, minWidth: '260px' }}>
+            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.25rem 0.75rem', borderRadius: 'var(--radius-full)', background: 'var(--primary-light)', color: 'var(--primary)', fontSize: '0.75rem', fontWeight: 600, marginBottom: '0.75rem' }}>
+              <Sparkles size={14} />
+              <span>Studio de Planification & Impression</span>
+            </div>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.5rem, 3vw, 2.25rem)', fontWeight: 800, letterSpacing: '-0.025em', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
+              Bienvenue sur Plani<span style={{ color: '#0284c7' }}>Lux</span>
+            </h1>
+            <p style={{ color: 'var(--text-secondary)', fontSize: 'clamp(0.9rem, 1.5vw, 1.05rem)', maxWidth: '680px', lineHeight: 1.5 }}>
+              Concevez, organisez et exportez vos emplois du temps et calendriers au format idéal : papier (A4/Letter), fond d'écran smartphone (9:16) ou bureau PC.
+            </p>
           </div>
-          <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.5rem, 3vw, 2.25rem)', fontWeight: 700, letterSpacing: '-0.025em', color: 'var(--text-primary)', marginBottom: '0.5rem' }}>
-            Bienvenue sur Planilux
-          </h1>
-          <p style={{ color: 'var(--text-secondary)', fontSize: 'clamp(0.9rem, 1.5vw, 1.05rem)', maxWidth: '720px', lineHeight: 1.5 }}>
-            Concevez, organisez et exportez vos emplois du temps et calendriers au format idéal : papier (A4/Letter), fond d'écran smartphone (9:16) ou bureau PC.
-          </p>
+
+          <div className="hidden sm:flex" style={{ flexShrink: 0 }}>
+            <PlaniluxLogo size={74} showText={false} />
+          </div>
         </div>
       </div>
 
