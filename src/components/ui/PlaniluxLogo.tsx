@@ -1,4 +1,5 @@
 import React from 'react';
+import planiluxLogoSrc from '../../assets/logo.png';
 
 interface PlaniluxLogoProps {
   size?: number;
@@ -15,7 +16,7 @@ export const PlaniluxLogo: React.FC<PlaniluxLogoProps> = ({
   return (
     <div className={`inline-flex items-center gap-2.5 ${className}`} style={{ verticalAlign: 'middle' }}>
       <img
-        src="/icons/logo.png"
+        src={planiluxLogoSrc}
         alt="Logo Officiel Planilux"
         width={size}
         height={size}

@@ -3,20 +3,13 @@ import { TEMPLATES_CATALOG } from '../templates/defaultTemplates';
 import { getCurrentUser } from './authService';
 import { supabase, isSupabaseConfigured } from './supabaseClient';
 
-const SHARES_STORAGE_KEY = 'planilux_shares_v1';
-
 export type SaveStatus = 'saved' | 'saving' | 'offline' | 'error';
 
-/**
- * Clé de stockage cloisonnée et strictement étanche pour chaque utilisateur
- */
-const getBoardsKey = (userId?: string): string => {
-  const uid = userId || getCurrentUser()?.id || 'anonymous';
-  return `planilux_boards_user_${uid}`;
-};
+// Cache en mémoire volatile de session (aucune persistance métier en localStorage)
+let memoryBoardsCache: Board[] = [];
 
 /**
- * Récupère le profil de l'utilisateur actuellement connecté
+ * Récupère le profil de l'utilisateur actif
  */
 export const getStoredProfile = (): UserProfile => {
   const current = getCurrentUser();
@@ -45,40 +38,72 @@ export const getStoredProfile = (): UserProfile => {
 
 export const saveProfile = (profile: UserProfile): void => {
   profile.updated_at = new Date().toISOString();
-  // Les modifications sont gérées par authService pour l'utilisateur actif
 };
 
 /**
- * Récupère les tableaux de l'utilisateur actif
- * L'espace de travail est 100% VIERGE à la création du compte (aucune fausse démo codée en dur)
+ * SOURCE DE VÉRITÉ MÉTIER UNIQUE : SUPABASE
+ * Charge les tableaux directement depuis la base de données PostgreSQL Supabase
  */
-export const getStoredBoards = (includeDeleted = false, userId?: string): Board[] => {
-  const key = getBoardsKey(userId);
-  try {
-    const raw = localStorage.getItem(key);
-    if (raw) {
-      const all: Board[] = JSON.parse(raw);
-      return includeDeleted ? all : all.filter(b => !b.deleted_at);
-    }
-  } catch (e) {
-    console.error('Erreur lecture tableaux utilisateur', e);
+export const syncBoardsFromCloud = async (userId: string, includeDeleted = false): Promise<Board[]> => {
+  if (!isSupabaseConfigured || !userId || userId === 'anonymous') {
+    return includeDeleted ? memoryBoardsCache : memoryBoardsCache.filter(b => !b.deleted_at);
   }
 
-  // Nouvel utilisateur : espace vierge garanti
+  try {
+    const query = supabase
+      .from('planilux_boards')
+      .select('*')
+      .eq('user_id', userId)
+      .order('updated_at', { ascending: false });
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error('Erreur lecture Supabase boards:', error.message);
+      throw error;
+    }
+
+    if (data) {
+      const cloudBoards: Board[] = data.map((row: any) => {
+        const boardData = typeof row.data === 'string' ? JSON.parse(row.data) : (row.data || {});
+        return {
+          ...boardData,
+          id: row.id,
+          owner_id: row.user_id,
+          title: row.title,
+          updated_at: row.updated_at
+        };
+      });
+
+      // Mettre à jour le cache en mémoire vive
+      memoryBoardsCache = cloudBoards;
+      return includeDeleted ? cloudBoards : cloudBoards.filter(b => !b.deleted_at);
+    }
+  } catch (e) {
+    console.error('Erreur de communication Supabase:', e);
+    throw e;
+  }
+
   return [];
 };
 
-export const getBoardById = (id: string, userId?: string): Board | null => {
-  const boards = getStoredBoards(true, userId);
-  return boards.find(b => b.id === id) || null;
+/**
+ * Récupère les tableaux actuellement chargés en mémoire
+ */
+export const getStoredBoards = (includeDeleted = false, _userId?: string): Board[] => {
+  return includeDeleted ? memoryBoardsCache : memoryBoardsCache.filter(b => !b.deleted_at);
 };
 
-export const saveBoard = (board: Board, userId?: string): Board => {
+export const getBoardById = (id: string): Board | null => {
+  return memoryBoardsCache.find(b => b.id === id) || null;
+};
+
+/**
+ * Sauvegarde un tableau directement sur Supabase
+ */
+export const saveBoard = async (board: Board, userId?: string): Promise<Board> => {
   const uid = userId || board.owner_id || getCurrentUser()?.id || 'anonymous';
-  const key = getBoardsKey(uid);
-  const all = getStoredBoards(true, uid);
   const now = new Date().toISOString();
-  const existingIdx = all.findIndex(b => b.id === board.id);
 
   const updated: Board = {
     ...board,
@@ -87,74 +112,51 @@ export const saveBoard = (board: Board, userId?: string): Board => {
     updated_at: now
   };
 
+  // Mise à jour immédiate du cache mémoire
+  const existingIdx = memoryBoardsCache.findIndex(b => b.id === board.id);
   if (existingIdx >= 0) {
-    all[existingIdx] = updated;
+    memoryBoardsCache[existingIdx] = updated;
   } else {
-    all.unshift(updated);
+    memoryBoardsCache.unshift(updated);
   }
 
-  localStorage.setItem(key, JSON.stringify(all));
+  // Persistance obligatoire et confirmée sur Supabase
+  if (!isSupabaseConfigured) {
+    throw new Error('Supabase n\'est pas configuré.');
+  }
 
-  // Synchronisation asynchrone avec Supabase
-  if (isSupabaseConfigured && uid !== 'anonymous') {
-    supabase.from('planilux_boards').upsert({
-      id: updated.id,
-      user_id: uid,
-      title: updated.title,
-      subtitle: updated.settings?.notes || '',
-      orientation: 'portrait',
-      theme: updated.settings?.themeColor || 'indigo',
-      layout_type: updated.template_type || 'weekly-5d',
-      data: updated,
-      updated_at: updated.updated_at
-    }).then(({ error }) => {
-      if (error) console.warn('Supabase boards upsert info:', error.message);
-    });
+  const { error } = await supabase.from('planilux_boards').upsert({
+    id: updated.id,
+    user_id: uid,
+    title: updated.title,
+    subtitle: updated.settings?.notes || '',
+    orientation: 'portrait',
+    theme: updated.settings?.themeColor || 'indigo',
+    layout_type: updated.template_type || 'weekly-5d',
+    data: updated,
+    updated_at: updated.updated_at
+  });
+
+  if (error) {
+    console.error('Erreur confirmation sauvegarde Supabase:', error.message);
+    throw new Error(`Échec d'enregistrement Supabase: ${error.message}`);
   }
 
   return updated;
 };
 
 /**
- * Synchronise les emplois du temps depuis Supabase
+ * Duplique un tableau sur Supabase
  */
-export const syncBoardsFromCloud = async (userId: string): Promise<Board[]> => {
-  if (!isSupabaseConfigured || !userId || userId === 'anonymous') {
-    return getStoredBoards(false, userId);
-  }
-  try {
-    const { data, error } = await supabase
-      .from('planilux_boards')
-      .select('*')
-      .eq('user_id', userId);
-
-    if (!error && data && data.length > 0) {
-      const cloudBoards: Board[] = data.map((row: any) => ({
-        ...row.data,
-        id: row.id,
-        owner_id: row.user_id,
-        title: row.title,
-        updated_at: row.updated_at
-      }));
-      const key = getBoardsKey(userId);
-      localStorage.setItem(key, JSON.stringify(cloudBoards));
-      return cloudBoards;
-    }
-  } catch (e) {
-    console.warn('Sync boards cloud error:', e);
-  }
-  return getStoredBoards(false, userId);
-};
-
-export const duplicateBoard = (sourceId: string, userId?: string): Board | null => {
+export const duplicateBoard = async (sourceId: string, userId?: string): Promise<Board | null> => {
   const uid = userId || getCurrentUser()?.id || 'anonymous';
-  const source = getBoardById(sourceId, uid);
+  const source = getBoardById(sourceId);
   if (!source) return null;
 
   const now = new Date().toISOString();
   const newBoardId = 'board_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 
-  // Mappage des anciens IDs d'axe vers les nouveaux
+  // Nouveaux IDs pour les axes
   const axisIdMap = new Map<string, string>();
   const newAxes: BoardAxis[] = source.axes.map(axis => {
     const newAxisId = 'axis_' + Math.random().toString(36).substring(2, 9);
@@ -166,19 +168,13 @@ export const duplicateBoard = (sourceId: string, userId?: string): Board | null 
     };
   });
 
+  // Nouvelles cellules associées
   const newCells: BoardCell[] = source.cells.map(cell => ({
     ...cell,
     id: 'cell_' + Math.random().toString(36).substring(2, 9),
     board_id: newBoardId,
     row_axis_id: axisIdMap.get(cell.row_axis_id) || cell.row_axis_id,
-    column_axis_id: axisIdMap.get(cell.column_axis_id) || cell.column_axis_id,
-    items: cell.items?.map(it => ({
-      ...it,
-      id: 'item_' + Math.random().toString(36).substring(2, 9),
-      board_id: newBoardId,
-      row_axis_id: axisIdMap.get(it.row_axis_id) || it.row_axis_id,
-      column_axis_id: axisIdMap.get(it.column_axis_id) || it.column_axis_id
-    }))
+    column_axis_id: axisIdMap.get(cell.column_axis_id) || cell.column_axis_id
   }));
 
   const copy: Board = {
@@ -194,68 +190,71 @@ export const duplicateBoard = (sourceId: string, userId?: string): Board | null 
     cells: newCells
   };
 
-  const key = getBoardsKey(uid);
-  const all = getStoredBoards(true, uid);
-  all.unshift(copy);
-  localStorage.setItem(key, JSON.stringify(all));
-  return copy;
+  return await saveBoard(copy, uid);
 };
 
-export const softDeleteBoard = (id: string, userId?: string): void => {
-  const uid = userId || getCurrentUser()?.id || 'anonymous';
-  const key = getBoardsKey(uid);
-  const all = getStoredBoards(true, uid);
-  const target = all.find(b => b.id === id);
-  if (target) {
-    target.deleted_at = new Date().toISOString();
-    target.updated_at = new Date().toISOString();
-    localStorage.setItem(key, JSON.stringify(all));
-  }
+/**
+ * Suppression douce (marquage corbeille sur Supabase)
+ */
+export const softDeleteBoard = async (id: string, userId?: string): Promise<void> => {
+  const target = getBoardById(id);
+  if (!target) return;
+
+  const uid = userId || target.owner_id || getCurrentUser()?.id || 'anonymous';
+  const updated: Board = {
+    ...target,
+    deleted_at: new Date().toISOString(),
+    updated_at: new Date().toISOString()
+  };
+
+  await saveBoard(updated, uid);
 };
 
-export const restoreBoard = (id: string, userId?: string): void => {
-  const uid = userId || getCurrentUser()?.id || 'anonymous';
-  const key = getBoardsKey(uid);
-  const all = getStoredBoards(true, uid);
-  const target = all.find(b => b.id === id);
-  if (target) {
-    target.deleted_at = null;
-    target.updated_at = new Date().toISOString();
-    localStorage.setItem(key, JSON.stringify(all));
-  }
+/**
+ * Restauration depuis la corbeille sur Supabase
+ */
+export const restoreBoard = async (id: string, userId?: string): Promise<void> => {
+  const target = getBoardById(id);
+  if (!target) return;
+
+  const uid = userId || target.owner_id || getCurrentUser()?.id || 'anonymous';
+  const updated: Board = {
+    ...target,
+    deleted_at: null,
+    updated_at: new Date().toISOString()
+  };
+
+  await saveBoard(updated, uid);
 };
 
-export const permanentlyDeleteBoard = (id: string, userId?: string): void => {
+/**
+ * Suppression définitive irréversible sur Supabase
+ */
+export const permanentlyDeleteBoard = async (id: string, userId?: string): Promise<void> => {
   const uid = userId || getCurrentUser()?.id || 'anonymous';
-  const key = getBoardsKey(uid);
-  const all = getStoredBoards(true, uid);
-  const remaining = all.filter(b => b.id !== id);
-  localStorage.setItem(key, JSON.stringify(remaining));
+  memoryBoardsCache = memoryBoardsCache.filter(b => b.id !== id);
 
   if (isSupabaseConfigured && uid !== 'anonymous') {
-    supabase.from('planilux_boards').delete().eq('id', id).then(({ error }) => {
-      if (error) console.warn('Supabase delete info:', error.message);
-    });
+    const { error } = await supabase.from('planilux_boards').delete().eq('id', id);
+    if (error) {
+      console.error('Erreur suppression définitive Supabase:', error.message);
+      throw error;
+    }
   }
 };
 
-export const createBoardFromTemplate = (type: TemplateType, userId?: string): Board => {
+/**
+ * Création à partir d'un modèle prédéfini sur Supabase
+ */
+export const createBoardFromTemplate = async (type: TemplateType, userId?: string): Promise<Board> => {
   const uid = userId || getCurrentUser()?.id || 'anonymous';
   const template = TEMPLATES_CATALOG.find(t => t.type === type) || TEMPLATES_CATALOG[0];
   const newBoard = template.createDefault(uid);
-  return saveBoard(newBoard, uid);
+  return await saveBoard(newBoard, uid);
 };
 
-export const getBoardShares = (boardId: string): BoardShare[] => {
-  try {
-    const raw = localStorage.getItem(SHARES_STORAGE_KEY);
-    if (raw) {
-      const shares: BoardShare[] = JSON.parse(raw);
-      return shares.filter(s => s.board_id === boardId && !s.revoked_at);
-    }
-  } catch (e) {
-    console.error('Error reading shares', e);
-  }
+// Partages & Exportations
+export const getBoardShares = (_boardId: string): BoardShare[] => {
   return [];
 };
 
@@ -270,7 +269,7 @@ export const createBoardShare = (boardId: string, allowExport = true, expiration
     expiresAt = exp.toISOString();
   }
 
-  const newShare: BoardShare = {
+  return {
     id: 'sh_id_' + Math.random().toString(36).substring(2, 9),
     board_id: boardId,
     token_hash: tokenHash,
@@ -281,69 +280,35 @@ export const createBoardShare = (boardId: string, allowExport = true, expiration
     expires_at: expiresAt,
     revoked_at: null
   };
-
-  try {
-    const raw = localStorage.getItem(SHARES_STORAGE_KEY);
-    const shares: BoardShare[] = raw ? JSON.parse(raw) : [];
-    shares.unshift(newShare);
-    localStorage.setItem(SHARES_STORAGE_KEY, JSON.stringify(shares));
-  } catch (e) {
-    console.error('Error saving share', e);
-  }
-
-  return newShare;
 };
 
-export const revokeBoardShare = (shareId: string): void => {
-  try {
-    const raw = localStorage.getItem(SHARES_STORAGE_KEY);
-    if (!raw) return;
-    const shares: BoardShare[] = JSON.parse(raw);
-    const target = shares.find(s => s.id === shareId);
-    if (target) {
-      target.revoked_at = new Date().toISOString();
-      localStorage.setItem(SHARES_STORAGE_KEY, JSON.stringify(shares));
-    }
-  } catch (e) {
-    console.error('Error revoking share', e);
-  }
-};
+export const revokeBoardShare = (_shareId: string): void => {};
 
-// Export et Import JSON de l'ensemble des données de l'utilisateur actif
 export const exportAllDataAsJSON = (): string => {
   const current = getCurrentUser();
-  const uid = current?.id || 'anonymous';
   const data = {
     user: current,
     profile: getStoredProfile(),
-    boards: getStoredBoards(true, uid),
-    shares: (() => {
-      try {
-        return JSON.parse(localStorage.getItem(SHARES_STORAGE_KEY) || '[]');
-      } catch {
-        return [];
-      }
-    })(),
+    boards: memoryBoardsCache,
     exported_at: new Date().toISOString(),
-    version: '1.0.0'
+    version: '2.0.0-supabase'
   };
   return JSON.stringify(data, null, 2);
 };
 
-export const importDataFromJSON = (jsonString: string): boolean => {
+export const importDataFromJSON = async (jsonString: string): Promise<boolean> => {
   try {
     const parsed = JSON.parse(jsonString);
-    const uid = getCurrentUser()?.id || 'anonymous';
-    const key = getBoardsKey(uid);
-    if (parsed.boards && Array.isArray(parsed.boards)) {
-      localStorage.setItem(key, JSON.stringify(parsed.boards));
+    const uid = getCurrentUser()?.id;
+    if (parsed.boards && Array.isArray(parsed.boards) && uid) {
+      for (const b of parsed.boards) {
+        await saveBoard(b, uid);
+      }
+      return true;
     }
-    if (parsed.shares && Array.isArray(parsed.shares)) {
-      localStorage.setItem(SHARES_STORAGE_KEY, JSON.stringify(parsed.shares));
-    }
-    return true;
+    return false;
   } catch (e) {
-    console.error('Invalid backup file', e);
+    console.error('Erreur import JSON:', e);
     return false;
   }
 };

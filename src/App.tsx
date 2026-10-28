@@ -48,23 +48,22 @@ export const App: React.FC = () => {
     localStorage.setItem('planilux_theme', theme);
   }, [theme]);
 
-  // Chargement des tableaux cloisonnés pour l'utilisateur connecté avec synchronisation Cloud
+  // Chargement des tableaux cloisonnés pour l'utilisateur connecté directement depuis Supabase
   const refreshBoards = async (userId?: string) => {
     const uid = userId || currentUser?.id;
     if (!uid) {
       setBoards([]);
       return;
     }
-    const localList = getStoredBoards(true, uid);
-    setBoards(localList);
 
     try {
-      const cloudList = await syncBoardsFromCloud(uid);
-      if (cloudList && cloudList.length > 0) {
-        setBoards(cloudList);
-      }
+      setSaveStatus('saving');
+      const cloudList = await syncBoardsFromCloud(uid, true);
+      setBoards(cloudList);
+      setSaveStatus('saved');
     } catch (e) {
-      console.warn('Sync cloud Supabase:', e);
+      console.warn('Erreur chargement Supabase:', e);
+      setSaveStatus('error');
     }
   };
 
@@ -110,7 +109,7 @@ export const App: React.FC = () => {
     trash: boards.filter(b => !!b.deleted_at).length
   };
 
-  // Mise à jour avec sauvegarde automatique temporisée
+  // Mise à jour avec persistance confirmée sur Supabase
   const handleUpdateActiveBoard = (updated: Board) => {
     setSaveStatus('saving');
     setBoards(prev => prev.map(b => (b.id === updated.id ? updated : b)));
@@ -119,60 +118,95 @@ export const App: React.FC = () => {
       clearTimeout(saveTimeoutRef.current);
     }
 
-    saveTimeoutRef.current = setTimeout(() => {
+    saveTimeoutRef.current = setTimeout(async () => {
       try {
         if (currentUser) {
-          saveBoard(updated, currentUser.id);
+          await saveBoard(updated, currentUser.id);
+          setSaveStatus('saved');
         }
-        setSaveStatus('saved');
       } catch (err) {
-        console.error('Auto-save error', err);
+        console.error('Erreur confirmation Supabase:', err);
         setSaveStatus('error');
       }
     }, 400);
   };
 
-  // Création à partir d'un modèle pour l'utilisateur connecté
-  const handleCreateFromTemplate = (type: TemplateType) => {
+  // Création à partir d'un modèle directement sur Supabase
+  const handleCreateFromTemplate = async (type: TemplateType) => {
     if (!currentUser) return;
-    const newBoard = createBoardFromTemplate(type, currentUser.id);
-    refreshBoards(currentUser.id);
-    setActiveBoardId(newBoard.id);
-  };
-
-  // Duplication
-  const handleDuplicate = (boardId: string) => {
-    if (!currentUser) return;
-    const copy = duplicateBoard(boardId, currentUser.id);
-    if (copy) {
-      refreshBoards(currentUser.id);
-      setActiveBoardId(copy.id);
+    try {
+      setSaveStatus('saving');
+      const newBoard = await createBoardFromTemplate(type, currentUser.id);
+      await refreshBoards(currentUser.id);
+      setActiveBoardId(newBoard.id);
+      setSaveStatus('saved');
+    } catch (e) {
+      console.error('Erreur création modèle Supabase:', e);
+      setSaveStatus('error');
     }
   };
 
-  // Suppression douce (corbeille)
-  const handleDelete = (boardId: string) => {
+  // Duplication sur Supabase
+  const handleDuplicate = async (boardId: string) => {
     if (!currentUser) return;
-    softDeleteBoard(boardId, currentUser.id);
-    refreshBoards(currentUser.id);
-    if (activeBoardId === boardId) {
-      setActiveBoardId(null);
+    try {
+      setSaveStatus('saving');
+      const copy = await duplicateBoard(boardId, currentUser.id);
+      if (copy) {
+        await refreshBoards(currentUser.id);
+        setActiveBoardId(copy.id);
+        setSaveStatus('saved');
+      }
+    } catch (e) {
+      console.error('Erreur duplication Supabase:', e);
+      setSaveStatus('error');
     }
   };
 
-  // Restauration
-  const handleRestore = (boardId: string) => {
+  // Suppression douce sur Supabase (corbeille)
+  const handleDelete = async (boardId: string) => {
     if (!currentUser) return;
-    restoreBoard(boardId, currentUser.id);
-    refreshBoards(currentUser.id);
+    try {
+      setSaveStatus('saving');
+      await softDeleteBoard(boardId, currentUser.id);
+      await refreshBoards(currentUser.id);
+      if (activeBoardId === boardId) {
+        setActiveBoardId(null);
+      }
+      setSaveStatus('saved');
+    } catch (e) {
+      console.error('Erreur corbeille Supabase:', e);
+      setSaveStatus('error');
+    }
   };
 
-  // Suppression définitive
-  const handlePermanentDelete = (boardId: string) => {
+  // Restauration depuis la corbeille sur Supabase
+  const handleRestore = async (boardId: string) => {
     if (!currentUser) return;
-    if (confirm('Êtes-vous sûr de vouloir supprimer définitivement ce tableau ? Cette action est irréversible.')) {
-      permanentlyDeleteBoard(boardId, currentUser.id);
-      refreshBoards(currentUser.id);
+    try {
+      setSaveStatus('saving');
+      await restoreBoard(boardId, currentUser.id);
+      await refreshBoards(currentUser.id);
+      setSaveStatus('saved');
+    } catch (e) {
+      console.error('Erreur restauration Supabase:', e);
+      setSaveStatus('error');
+    }
+  };
+
+  // Suppression définitive sur Supabase
+  const handlePermanentDelete = async (boardId: string) => {
+    if (!currentUser) return;
+    if (confirm('Êtes-vous sûr de vouloir supprimer définitivement ce tableau de Supabase ? Cette action est irréversible.')) {
+      try {
+        setSaveStatus('saving');
+        await permanentlyDeleteBoard(boardId, currentUser.id);
+        await refreshBoards(currentUser.id);
+        setSaveStatus('saved');
+      } catch (e) {
+        console.error('Erreur suppression définitive Supabase:', e);
+        setSaveStatus('error');
+      }
     }
   };
 

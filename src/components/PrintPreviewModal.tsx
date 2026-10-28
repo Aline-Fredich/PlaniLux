@@ -509,8 +509,8 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: cellFontSize }}>
                   <thead>
                     <tr style={{ background: wpStyle.headerBg }}>
-                      <th style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, textAlign: 'center', fontWeight: 600 }}>
-                        Horaires
+                      <th style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, textAlign: 'center', fontWeight: 800, letterSpacing: '0.04em' }}>
+                        HORAIRE
                       </th>
                       {colAxes.map(c => (
                         <th key={c.id} style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, textAlign: 'center', fontWeight: 600 }}>

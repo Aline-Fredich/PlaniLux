@@ -517,8 +517,8 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                       padding: dStyle.headerPadding 
                     }}
                   >
-                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 600 }}>
-                      Heures / Jours
+                    <div style={{ fontSize: '0.78rem', color: 'var(--text-primary)', fontWeight: 800, letterSpacing: '0.04em' }}>
+                      HORAIRE
                     </div>
                   </th>
 

@@ -22,15 +22,23 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
     iconName: 'Clock',
     createDefault: (ownerId: string): Board => {
       const boardId = generateId();
-      const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi'];
+      const days = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI', 'DIMANCHE'];
       const slots = [
-        { label: '08:00 - 09:30', start: '08:00', end: '09:30' },
-        { label: '09:45 - 11:15', start: '09:45', end: '11:15' },
-        { label: '11:30 - 13:00', start: '11:30', end: '13:00' },
-        { label: '13:00 - 14:00 (Pause)', start: '13:00', end: '14:00' },
-        { label: '14:00 - 15:30', start: '14:00', end: '15:30' },
-        { label: '15:45 - 17:15', start: '15:45', end: '17:15' },
-        { label: '17:30 - 19:00', start: '17:30', end: '19:00' },
+        { label: '02H00 A 03H00', start: '02:00', end: '03:00' },
+        { label: '03H00 A 04H00', start: '03:00', end: '04:00' },
+        { label: '04H00 A 05H00', start: '04:00', end: '05:00' },
+        { label: '05H00 A 06H00', start: '05:00', end: '06:00' },
+        { label: '06H00 A 07H30', start: '06:00', end: '07:30' },
+        { label: '07H30 A 09H30', start: '07:30', end: '09:30' },
+        { label: '09H30 A 11H30', start: '09:30', end: '11:30' },
+        { label: '11H30 A 14H30', start: '11:30', end: '14:30' },
+        { label: '14H30 A 16H00', start: '14:30', end: '16:00' },
+        { label: '16H00 A 18H00', start: '16:00', end: '18:00' },
+        { label: '18H00 A 19H00', start: '18:00', end: '19:00' },
+        { label: '19H30 A 21H30', start: '19:30', end: '21:30' },
+        { label: '21H30 A 22H30', start: '21:30', end: '22:30' },
+        { label: '22H30 A 23H00', start: '22:30', end: '23:00' },
+        { label: '23H30 A 02H00', start: '23:30', end: '02:00' }
       ];
 
       const axes: BoardAxis[] = [];
@@ -41,7 +49,7 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
         position: idx,
         label: day,
         kind: 'weekday',
-        size_px: 150
+        size_px: 135
       }));
       axes.push(...colAxes);
 
@@ -54,40 +62,99 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
         kind: 'time_slot',
         start_time: s.start,
         end_time: s.end,
-        size_px: 64
+        size_px: 52
       }));
       axes.push(...rowAxes);
 
       const cells: BoardCell[] = [];
       
-      // Exemples de cours pré-remplis
-      const demoData: { row: number; col: number; text: string; bg: string; color: string }[] = [
-        { row: 0, col: 0, text: 'Mathématiques Approfondies\nAmphi A', bg: '#dbeafe', color: '#1e40af' },
-        { row: 1, col: 0, text: 'Physique Quantique\nSalle 204', bg: '#fef3c7', color: '#92400e' },
-        { row: 3, col: 0, text: '— Pause Déjeuner —', bg: '#f3f4f6', color: '#6b7280' },
-        { row: 4, col: 0, text: 'Informatique & Algorithmique\nLab 3', bg: '#dcfce7', color: '#166534' },
-        { row: 0, col: 1, text: 'Anglais Professionnel\nSalle 102', bg: '#fce7f3', color: '#9d174d' },
-        { row: 2, col: 1, text: 'Droit Numérique & Éthique\nAmphi B', bg: '#ede9fe', color: '#5b21b6' },
-        { row: 3, col: 1, text: '— Pause Déjeuner —', bg: '#f3f4f6', color: '#6b7280' },
-        { row: 4, col: 2, text: 'Projet de Groupe\nEspace Coworking', bg: '#ffedd5', color: '#9a3412' },
-        { row: 0, col: 3, text: 'Gestion de Projet Agile\nSalle 301', bg: '#e0f2fe', color: '#0369a1' },
-        { row: 1, col: 3, text: 'Base de Données relationnelles\nLab 1', bg: '#dcfce7', color: '#166534' },
-        { row: 3, col: 3, text: '— Pause Déjeuner —', bg: '#f3f4f6', color: '#6b7280' },
-        { row: 5, col: 4, text: 'Séance de Mentorat & Revue', bg: '#fef9c3', color: '#854d0e' },
-      ];
+      // Configuration fidèle à l'emploi du temps de référence fourni
+      const getCellData = (rowIdx: number, colIdx: number) => {
+        // 02H00 A 03H00 -> JAVA SCRIPT sur les 7 jours (cyan)
+        if (rowIdx === 0) {
+          return { text: 'JAVA\nSCRIPT', bg: '#22d3ee', color: '#082f49', bold: true };
+        }
+        // 03H00 A 04H00 -> HACKING sur les 7 jours (jaune vif)
+        if (rowIdx === 1) {
+          return { text: 'HACKING', bg: '#facc15', color: '#713f12', bold: true };
+        }
+        // 04H00 A 05H00
+        if (rowIdx === 2) {
+          if (colIdx === 0 || colIdx === 1) return { text: 'SYSTÈME\nEXPLOITATION', bg: '#f8fafc', color: '#0f172a', bold: true };
+          if (colIdx >= 2 && colIdx <= 4) return { text: 'AUDIT ET\nCONFORMITÉ\nSI', bg: '#f8fafc', color: '#0f172a', bold: true };
+          return { text: 'SÉCURITÉ\nSYSTÈME\nINFO', bg: '#f8fafc', color: '#0f172a', bold: true };
+        }
+        // 05H00 A 06H00
+        if (rowIdx === 3) {
+          if (colIdx === 0 || colIdx === 1) return { text: 'WINDOWS\nSERVER', bg: '#f8fafc', color: '#0f172a', bold: true };
+          return { text: 'MATHS', bg: '#f8fafc', color: '#0f172a', bold: true };
+        }
+        // 06H00 A 07H30 -> repos / pause
+        if (rowIdx === 4) {
+          return { text: '—//—', bg: '#ffffff', color: '#64748b', bold: false };
+        }
+        // 07H30 A 09H30
+        if (rowIdx === 5) {
+          if (colIdx <= 4) return { text: 'STAGE\nUBA BANK', bg: '#dc2626', color: '#ffffff', bold: true };
+          if (colIdx === 5) return { text: 'ADMIN\nLINUX', bg: '#f8fafc', color: '#0f172a', bold: true };
+          return { text: '—//—', bg: '#ffffff', color: '#64748b', bold: false };
+        }
+        // 09H30 A 11H30
+        if (rowIdx === 6) {
+          if (colIdx <= 4) return { text: 'STAGE\nUBA BANK', bg: '#dc2626', color: '#ffffff', bold: true };
+          if (colIdx === 5) return { text: 'ADMIN\nLINUX', bg: '#f8fafc', color: '#0f172a', bold: true };
+          return { text: '—//—', bg: '#ffffff', color: '#64748b', bold: false };
+        }
+        // 11H30 A 14H30
+        if (rowIdx === 7) {
+          if (colIdx <= 4) return { text: 'STAGE\nUBA BANK', bg: '#dc2626', color: '#ffffff', bold: true };
+          if (colIdx === 5) return { text: 'CRYPTO', bg: '#f8fafc', color: '#0f172a', bold: true };
+          return { text: '—//—', bg: '#ffffff', color: '#64748b', bold: false };
+        }
+        // 14H30 A 16H00
+        if (rowIdx === 8) {
+          if (colIdx <= 4) return { text: 'STAGE\nUBA BANK', bg: '#dc2626', color: '#ffffff', bold: true };
+          if (colIdx === 5) return { text: 'CRYPTO', bg: '#f8fafc', color: '#0f172a', bold: true };
+          return { text: '—//—', bg: '#ffffff', color: '#64748b', bold: false };
+        }
+        // 16H00 A 18H00 -> repos
+        if (rowIdx === 9) {
+          return { text: '—//—', bg: '#ffffff', color: '#64748b', bold: false };
+        }
+        // 18H00 A 19H00 -> SENTINELLE NUMERIQUE sur les 7 jours (cyan)
+        if (rowIdx === 10) {
+          return { text: 'SENTINELLE\nNUMÉRIQUE', bg: '#22d3ee', color: '#082f49', bold: true };
+        }
+        // 19H30 A 21H30
+        if (rowIdx === 11) {
+          if (colIdx <= 4) return { text: 'RÉSEAU', bg: '#f8fafc', color: '#0f172a', bold: true };
+          return { text: 'SÉCURITÉ\nSYSTÈME\nINFO', bg: '#f8fafc', color: '#0f172a', bold: true };
+        }
+        // 21H30 A 22H30
+        if (rowIdx === 12) {
+          if (colIdx <= 4) return { text: 'CODEZ\nC++', bg: '#f8fafc', color: '#0f172a', bold: true };
+          return { text: 'GESTION\nINCIDENT\nSÉCURITÉ', bg: '#f8fafc', color: '#0f172a', bold: true };
+        }
+        // 22H30 A 23H00 -> MEDITATION sur les 7 jours (vert émeraude)
+        if (rowIdx === 13) {
+          return { text: 'MÉDITATION', bg: '#4ade80', color: '#064e3b', bold: true };
+        }
+        // 23H30 A 02H00 -> repos
+        return { text: '—//—', bg: '#ffffff', color: '#64748b', bold: false };
+      };
 
       for (const r of rowAxes) {
         for (const c of colAxes) {
-          const match = demoData.find(d => d.row === r.position && d.col === c.position);
+          const item = getCellData(r.position, c.position);
           cells.push({
             id: generateId(),
             board_id: boardId,
             row_axis_id: r.id,
             column_axis_id: c.id,
-            content: match ? match.text : '',
-            background_color: match ? match.bg : '#ffffff',
-            text_color: match ? match.color : '#1f2937',
-            text_style: { align: 'center', bold: !!match }
+            content: item.text,
+            background_color: item.bg,
+            text_color: item.color,
+            text_style: { align: 'center', bold: item.bold }
           });
         }
       }
@@ -95,14 +162,14 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       return {
         id: boardId,
         owner_id: ownerId,
-        title: 'Emploi du temps Universitaire S1',
+        title: 'Emploi du temps Hebdomadaire',
         template_type: 'timetable',
         settings: {
           showGridLines: true,
           firstDayOfWeek: 1,
-          slotDurationMinutes: 90,
-          themeColor: '#3b82f6',
-          notes: 'Important : Présence obligatoire aux TD. Rendu de projet le vendredi avant 18h.'
+          slotDurationMinutes: 60,
+          themeColor: '#0284c7',
+          notes: 'Planning intensif Cyber & Ingénierie logicielle — Présence obligatoire.'
         },
         timezone: 'Europe/Paris',
         week_starts_on: 1,
