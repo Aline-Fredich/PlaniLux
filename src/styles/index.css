@@ -608,40 +608,42 @@ body {
 }
 
 .planner-table-glass th {
-  background: var(--bg-secondary);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  background: var(--bg-primary);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.85rem;
   text-align: center;
   padding: 0.75rem 0.5rem;
   user-select: none;
   position: sticky;
   top: 0;
-  z-index: 10;
+  z-index: 22;
 }
 
 .planner-table-glass .corner-header {
+  position: sticky;
+  top: 0;
   left: 0;
-  z-index: 25;
-  background: var(--bg-secondary);
-  min-width: 140px;
+  z-index: 35 !important;
+  background: var(--bg-primary) !important;
+  min-width: 130px;
 }
 
 .planner-table-glass .row-header {
   position: sticky;
   left: 0;
-  z-index: 15;
-  background: var(--bg-secondary);
-  -webkit-backdrop-filter: blur(16px);
-  backdrop-filter: blur(16px);
+  z-index: 20;
+  background: var(--bg-primary) !important;
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   font-size: 0.8rem;
   font-weight: 600;
   color: var(--text-secondary);
   text-align: center;
   padding: 0.5rem;
-  min-width: 140px;
+  min-width: 130px;
 }
 
 .planner-cell {
@@ -829,7 +831,7 @@ body {
 }
 
 /* ==========================================================================
-   Panneau Latéral des Propriétés de Cellule (Glass Properties Panel)
+   Panneau Latéral des Propriétés de Cellule (Glass Properties Panel & Bottom Sheet)
    ========================================================================== */
 
 .properties-panel {
@@ -842,9 +844,293 @@ body {
   flex-direction: column;
   overflow-y: auto;
   padding: 1.25rem;
-  gap: 1.25rem;
-  box-shadow: -4px 0 20px -8px rgba(15, 23, 42, 0.1);
-  z-index: 30;
+  gap: 1rem;
+  box-shadow: -4px 0 24px -8px rgba(15, 23, 42, 0.15);
+  z-index: 35;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--glass-border-subtle);
+}
+
+.panel-title {
+  font-family: var(--font-display);
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.sheet-drag-handle {
+  width: 44px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--border-medium);
+  margin: -0.25rem auto 0.5rem auto;
+  cursor: pointer;
+  opacity: 0.75;
+}
+
+.quick-subject-chip {
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-medium);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  user-select: none;
+}
+
+.quick-subject-chip:hover, .quick-subject-chip:active {
+  transform: scale(1.05);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+}
+
+.cell-textarea {
+  width: 100%;
+  padding: 0.65rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.cell-textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary-light);
+}
+
+.color-swatches-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 0.45rem;
+}
+
+.color-swatch-item {
+  width: 100%;
+  height: 32px;
+  border-radius: var(--radius-sm);
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.color-swatch-item:hover, .color-swatch-item:active {
+  transform: scale(1.1);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.color-swatch-item.active {
+  outline: 2.5px solid var(--primary);
+  outline-offset: 1px;
+}
+
+.panel-footer-actions {
+  margin-top: auto;
+  padding-top: 1rem;
+  border-top: 1px solid var(--glass-border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* ==========================================================================
+   Composants de l'Éditeur & Contrôles Responsive
+   ========================================================================== */
+
+.editor-container {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - 64px);
+  height: calc(100dvh - 64px);
+  overflow: hidden;
+  position: relative;
+}
+
+.editor-toolbar {
+  background: var(--bg-secondary);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.5rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  z-index: 25;
+  flex-shrink: 0;
+}
+
+.editor-toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.editor-title-input {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: clamp(0.95rem, 2vw, 1.25rem);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  padding: 0.25rem 0.5rem;
+  color: var(--text-primary);
+  width: 100%;
+  max-width: 380px;
+  text-overflow: ellipsis;
+  outline: none;
+}
+
+.editor-title-input:hover, .editor-title-input:focus {
+  border-color: var(--border-medium);
+  background: var(--bg-tertiary);
+}
+
+.editor-toolbar-center {
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.editor-toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
+.toolbar-pill-group {
+  display: flex;
+  align-items: center;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--glass-border-subtle);
+  border-radius: var(--radius-full);
+  padding: 2px;
+}
+
+.btn-glass-pill {
+  all: unset;
+  box-sizing: border-box;
+  padding: 0.28rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-glass-pill:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.4);
+}
+
+.btn-glass-pill.active {
+  background: var(--primary);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(37, 99, 235, 0.3);
+}
+
+.mobile-options-drawer {
+  background: var(--bg-secondary);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  border-bottom: 1px solid var(--glass-border);
+  padding: 0.85rem 1rem;
+  box-shadow: var(--shadow-glass-elevated);
+  z-index: 24;
+  animation: slideUp 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.mobile-scroll-hint {
+  font-size: 0.72rem;
+  font-weight: 550;
+  color: var(--primary);
+  background: var(--primary-light);
+  padding: 0.3rem 0.75rem;
+  border-radius: var(--radius-full);
+  margin-bottom: 0.75rem;
+  text-align: center;
+  border: 1px solid var(--glass-border-subtle);
+  animation: fadeIn 0.3s ease;
+}
+
+.editor-main {
+  display: flex;
+  flex: 1;
+  overflow: hidden;
+  position: relative;
+}
+
+.grid-viewport {
+  flex: 1;
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: 1.25rem 1rem 3rem 1rem;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.board-notes-card {
+  max-width: 880px;
+  width: 100%;
+  margin: 1.75rem auto 0 auto;
+  background: var(--bg-glass-card);
+  -webkit-backdrop-filter: var(--glass-blur);
+  backdrop-filter: var(--glass-blur);
+  padding: 0.9rem 1.15rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--shadow-glass);
+}
+
+.board-notes-textarea {
+  width: 100%;
+  padding: 0.6rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-medium);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 0.825rem;
+  line-height: 1.4;
+  outline: none;
+}
+
+.cell-content-wrapper {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+}
+
+.cell-empty-placeholder {
+  opacity: 0;
+  color: var(--text-muted);
+  font-size: 1.1rem;
+  font-weight: 300;
+  text-align: center;
+  transition: opacity 0.15s ease;
+}
+
+.planner-cell:hover .cell-empty-placeholder {
+  opacity: 0.45;
 }
 
 /* ==========================================================================
@@ -888,9 +1174,19 @@ body {
   }
 }
 
-@media (max-width: 640px) {
+@media (max-width: 768px) {
   .app-header {
     padding: 0 0.75rem;
+    height: 56px;
+  }
+
+  .editor-container {
+    height: calc(100vh - 56px);
+    height: calc(100dvh - 56px);
+  }
+
+  .editor-toolbar {
+    padding: 0.4rem 0.65rem;
   }
 
   .properties-panel {
@@ -899,19 +1195,29 @@ body {
     left: 0;
     right: 0;
     width: 100%;
-    max-height: 55vh;
+    max-height: 75vh;
+    max-height: 75dvh;
     border-left: none;
-    border-top: 1px solid var(--glass-border);
+    border-top: 1.5px solid var(--glass-border);
     border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+    box-shadow: 0 -12px 36px rgba(0, 0, 0, 0.28);
+    padding: 1rem 1.15rem;
+    z-index: 60;
   }
 
   .btn-glass-black, .btn-glass-secondary {
-    padding: 0.5rem 0.85rem;
-    font-size: 0.825rem;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+    min-height: 38px;
   }
 
-  .planner-cell {
-    min-width: 100px;
-    font-size: 0.75rem;
+  .grid-viewport {
+    padding: 0.75rem 0.5rem 4rem 0.5rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .btn-compact-mobile {
+    padding: 0.4rem 0.55rem !important;
   }
 }
