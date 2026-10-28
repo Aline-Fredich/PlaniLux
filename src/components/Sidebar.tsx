@@ -9,10 +9,12 @@ import {
   ChevronLeft, 
   ChevronRight,
   FolderOpen,
-  LogOut
+  LogOut,
+  Download
 } from 'lucide-react';
 import { TemplateType, UserAccount } from '../types';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface SidebarProps {
   activeView: 'list' | 'editor';
@@ -44,6 +46,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onLogout,
   counts
 }) => {
+  const { isInstalled, installApp } = usePWAInstall();
+
   return (
     <>
       {/* Overlay sur mobile quand la sidebar est ouverte */}
@@ -179,6 +183,20 @@ export const Sidebar: React.FC<SidebarProps> = ({
               </>
             )}
           </button>
+
+          {/* Bouton d'installation de l'application sur mobile / bureau */}
+          {!isInstalled && (
+            <button
+              type="button"
+              className="sidebar-nav-item"
+              onClick={installApp}
+              title="Installer l'application sur le téléphone ou le bureau"
+              style={{ color: 'var(--primary)', marginTop: '0.5rem' }}
+            >
+              <Download size={18} />
+              {isOpen && <span className="nav-label" style={{ fontWeight: 600 }}>Installer l'App</span>}
+            </button>
+          )}
 
           <button
             type="button"

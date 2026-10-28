@@ -1,7 +1,8 @@
-import { Moon, Sun, User, CheckCircle2, CloudOff, RefreshCw, AlertCircle, Menu, LogOut } from 'lucide-react';
+import { Moon, Sun, User, CheckCircle2, CloudOff, RefreshCw, AlertCircle, Menu, LogOut, Download } from 'lucide-react';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
 import { SaveStatus } from '../services/storageService';
 import { UserAccount } from '../types';
+import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface HeaderProps {
   currentView: 'list' | 'editor';
@@ -26,6 +27,8 @@ export const Header: React.FC<HeaderProps> = ({
   currentUser,
   onLogout
 }) => {
+  const { isInstalled, installApp } = usePWAInstall();
+
   return (
     <header className="app-header">
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -49,6 +52,29 @@ export const Header: React.FC<HeaderProps> = ({
       </div>
 
       <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        {/* Bouton Installer l'application (PWA) */}
+        {!isInstalled && (
+          <button
+            type="button"
+            className="btn-glass-secondary"
+            onClick={installApp}
+            title="Installer l'application sur le téléphone ou le bureau"
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.45rem',
+              color: 'var(--primary)',
+              borderColor: 'rgba(99, 102, 241, 0.4)',
+              background: 'rgba(99, 102, 241, 0.08)'
+            }}
+          >
+            <Download size={15} />
+            <span className="hidden sm:inline" style={{ fontWeight: 600, fontSize: '0.85rem' }}>
+              Installer l'App
+            </span>
+          </button>
+        )}
+
         {/* Indicateur d'état de sauvegarde réactif */}
         <div className="header-status-badge">
           {saveStatus === 'saved' && (

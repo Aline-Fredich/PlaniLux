@@ -8,6 +8,7 @@ import {
   restoreBoard,
   permanentlyDeleteBoard,
   createBoardFromTemplate,
+  syncBoardsFromCloud,
   SaveStatus
 } from './services/storageService';
 import { getCurrentUser, logoutUser } from './services/authService';
@@ -47,15 +48,24 @@ export const App: React.FC = () => {
     localStorage.setItem('planilux_theme', theme);
   }, [theme]);
 
-  // Chargement des tableaux cloisonnés pour l'utilisateur connecté
-  const refreshBoards = (userId?: string) => {
+  // Chargement des tableaux cloisonnés pour l'utilisateur connecté avec synchronisation Cloud
+  const refreshBoards = async (userId?: string) => {
     const uid = userId || currentUser?.id;
     if (!uid) {
       setBoards([]);
       return;
     }
-    const list = getStoredBoards(true, uid);
-    setBoards(list);
+    const localList = getStoredBoards(true, uid);
+    setBoards(localList);
+
+    try {
+      const cloudList = await syncBoardsFromCloud(uid);
+      if (cloudList && cloudList.length > 0) {
+        setBoards(cloudList);
+      }
+    } catch (e) {
+      console.warn('Sync cloud Supabase:', e);
+    }
   };
 
   useEffect(() => {

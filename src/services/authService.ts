@@ -61,44 +61,21 @@ export interface RegisterData {
 
 export const registerUser = (data: RegisterData): { success: boolean; user?: UserAccount; error?: string } => {
   const users = getAllUsers();
-  
   const cleanEmail = data.email.trim().toLowerCase();
   const cleanUsername = data.username.trim();
 
-  if (!cleanUsername) {
-    return { success: false, error: "Veuillez renseigner votre nom d'utilisateur." };
-  }
-  if (!cleanEmail || !cleanEmail.includes('@')) {
-    return { success: false, error: "Veuillez renseigner une adresse e-mail valide." };
-  }
-  if (!data.password || data.password.length < 4) {
-    return { success: false, error: "Le mot de passe doit comporter au moins 4 caractères." };
-  }
-  if (!data.phone.trim()) {
-    return { success: false, error: "Veuillez renseigner votre numéro de téléphone." };
-  }
-  if (!data.address.trim()) {
-    return { success: false, error: "Veuillez renseigner votre adresse." };
-  }
-
-  // Vérifier si l'email existe déjà
-  const existingEmail = users.find(u => u.email.toLowerCase() === cleanEmail);
-  if (existingEmail) {
-    return { success: false, error: "Cette adresse e-mail est déjà associée à un compte." };
-  }
-
-  // Vérifier si le nom d'utilisateur existe déjà
-  const existingUsername = users.find(u => u.username.toLowerCase() === cleanUsername.toLowerCase());
-  if (existingUsername) {
-    return { success: false, error: "Ce nom d'utilisateur est déjà utilisé." };
-  }
+  if (!cleanUsername) return { success: false, error: "Veuillez renseigner votre nom d'utilisateur." };
+  if (!cleanEmail || !cleanEmail.includes('@')) return { success: false, error: "Veuillez renseigner une adresse e-mail valide." };
+  if (!data.password || data.password.length < 4) return { success: false, error: "Le mot de passe doit comporter au moins 4 caractères." };
+  if (!data.phone.trim()) return { success: false, error: "Veuillez renseigner votre numéro de téléphone." };
+  if (!data.address.trim()) return { success: false, error: "Veuillez renseigner votre adresse." };
 
   const now = new Date().toISOString();
   const newUser: UserAccount = {
     id: 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7),
     username: cleanUsername,
     email: cleanEmail,
-    password: data.password, // Stockage pour validation de session
+    password: data.password,
     phone: data.phone.trim(),
     address: data.address.trim(),
     locale: 'fr-FR',
@@ -110,30 +87,84 @@ export const registerUser = (data: RegisterData): { success: boolean; user?: Use
   users.push(newUser);
   saveUsers(users);
   setSession(newUser);
-
-  // Synchronisation avec la base Supabase
-  if (isSupabaseConfigured) {
-    supabase.from('planilux_users').insert({
-      id: newUser.id,
-      username: newUser.username,
-      email: newUser.email,
-      password_hash: newUser.password,
-      phone: newUser.phone,
-      address: newUser.address,
-      locale: newUser.locale,
-      timezone: newUser.timezone,
-      created_at: newUser.created_at,
-      updated_at: newUser.updated_at
-    }).then(({ error }) => {
-      if (error) console.warn('Supabase users sync info:', error.message);
-    });
-  }
-
   return { success: true, user: newUser };
 };
 
 /**
- * Connexion d'un utilisateur existant
+ * Inscription asynchrone DIRECTE dans la base de données Supabase
+ */
+export const registerUserAsync = async (data: RegisterData): Promise<{ success: boolean; user?: UserAccount; error?: string }> => {
+  const cleanEmail = data.email.trim().toLowerCase();
+  const cleanUsername = data.username.trim();
+
+  if (!cleanUsername) return { success: false, error: "Veuillez renseigner votre nom d'utilisateur." };
+  if (!cleanEmail || !cleanEmail.includes('@')) return { success: false, error: "Veuillez renseigner une adresse e-mail valide." };
+  if (!data.password || data.password.length < 4) return { success: false, error: "Le mot de passe doit comporter au moins 4 caractères." };
+  if (!data.phone.trim()) return { success: false, error: "Veuillez renseigner votre numéro de téléphone." };
+  if (!data.address.trim()) return { success: false, error: "Veuillez renseigner votre adresse." };
+
+  const now = new Date().toISOString();
+  const newUser: UserAccount = {
+    id: 'user_' + Date.now().toString(36) + '_' + Math.random().toString(36).substring(2, 7),
+    username: cleanUsername,
+    email: cleanEmail,
+    password: data.password,
+    phone: data.phone.trim(),
+    address: data.address.trim(),
+    locale: 'fr-FR',
+    timezone: 'Europe/Paris',
+    created_at: now,
+    updated_at: now
+  };
+
+  // Enregistrement direct dans Supabase
+  if (isSupabaseConfigured) {
+    try {
+      const { data: existing, error: checkError } = await supabase
+        .from('planilux_users')
+        .select('id, email, username')
+        .or(`email.ilike.${cleanEmail},username.ilike.${cleanUsername}`);
+
+      if (checkError) {
+        console.warn('Supabase check error:', checkError.message);
+      } else if (existing && existing.length > 0) {
+        if (existing.some(u => u.email.toLowerCase() === cleanEmail)) {
+          return { success: false, error: "Cette adresse e-mail est déjà associée à un compte dans la base Supabase." };
+        }
+        return { success: false, error: "Ce nom d'utilisateur est déjà utilisé." };
+      }
+
+      const { error: insertError } = await supabase
+        .from('planilux_users')
+        .insert({
+          id: newUser.id,
+          username: newUser.username,
+          email: newUser.email,
+          password_hash: newUser.password,
+          phone: newUser.phone,
+          address: newUser.address,
+          locale: newUser.locale,
+          timezone: newUser.timezone,
+          created_at: newUser.created_at,
+          updated_at: newUser.updated_at
+        });
+
+      if (insertError) {
+        console.error('Erreur insertion Supabase:', insertError);
+        return { success: false, error: "Erreur Supabase : " + insertError.message };
+      }
+    } catch (err: any) {
+      console.warn('Connexion Supabase instable lors de l\'inscription:', err.message);
+    }
+  }
+
+  // Mettre à jour la session active
+  setSession(newUser);
+  return { success: true, user: newUser };
+};
+
+/**
+ * Connexion d'un utilisateur existant (fallback synchrone)
  */
 export const loginUser = (identifier: string, password: string): { success: boolean; user?: UserAccount; error?: string } => {
   const users = getAllUsers();
@@ -156,22 +187,23 @@ export const loginUser = (identifier: string, password: string): { success: bool
 };
 
 /**
- * Connexion asynchrone avec fallback cloud Supabase
+ * Connexion asynchrone DIRECTE depuis la base de données Supabase
  */
 export const loginUserAsync = async (identifier: string, password: string): Promise<{ success: boolean; user?: UserAccount; error?: string }> => {
-  const localRes = loginUser(identifier, password);
-  if (localRes.success) return localRes;
+  const cleanId = identifier.trim().toLowerCase();
 
+  // 1. Requête DIRECTE dans Supabase en priorité absolue
   if (isSupabaseConfigured) {
     try {
-      const cleanId = identifier.trim().toLowerCase();
       const { data, error } = await supabase
         .from('planilux_users')
         .select('*')
         .or(`email.ilike.${cleanId},username.ilike.${cleanId}`)
         .limit(1);
 
-      if (!error && data && data.length > 0) {
+      if (error) {
+        console.warn('Erreur Supabase lors de la connexion:', error.message);
+      } else if (data && data.length > 0) {
         const u = data[0];
         if (u.password_hash === password) {
           const userAccount: UserAccount = {
@@ -186,24 +218,23 @@ export const loginUserAsync = async (identifier: string, password: string): Prom
             created_at: u.created_at,
             updated_at: u.updated_at
           };
-          const users = getAllUsers();
-          if (!users.some(ex => ex.id === userAccount.id)) {
-            users.push(userAccount);
-            saveUsers(users);
-          }
           setSession(userAccount);
           return { success: true, user: userAccount };
         } else {
           return { success: false, error: "Mot de passe incorrect." };
         }
+      } else {
+        return { success: false, error: "Aucun compte trouvé avec cet identifiant ou adresse e-mail dans la base Supabase." };
       }
-    } catch (e) {
-      console.warn('Supabase cloud fallback error:', e);
+    } catch (e: any) {
+      console.warn('Supabase indisponible, vérification locale:', e.message);
     }
   }
 
-  return localRes;
+  return loginUser(identifier, password);
 };
+
+
 
 /**
  * Déconnexion

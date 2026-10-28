@@ -12,7 +12,7 @@ import {
   AlertCircle 
 } from 'lucide-react';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
-import { registerUser, loginUserAsync } from '../services/authService';
+import { registerUserAsync, loginUserAsync } from '../services/authService';
 import { UserAccount } from '../types';
 
 interface AuthPageProps {
@@ -40,13 +40,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ onAuthSuccess }) => {
     password: ''
   });
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMessage(null);
     setIsLoading(true);
 
     try {
-      const result = registerUser({
+      const result = await registerUserAsync({
         username: registerForm.username,
         email: registerForm.email,
         password: registerForm.password,
