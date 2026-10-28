@@ -15,7 +15,7 @@ export const PlaniluxLogo: React.FC<PlaniluxLogoProps> = ({
   return (
     <div className={`inline-flex items-center gap-2.5 ${className}`} style={{ verticalAlign: 'middle' }}>
       <img
-        src="/logo.png"
+        src="/icons/logo.png"
         alt="Logo Officiel Planilux"
         width={size}
         height={size}
