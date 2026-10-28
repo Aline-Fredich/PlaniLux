@@ -3,7 +3,7 @@
 
 -- 1. Table des utilisateurs PlaniLux
 CREATE TABLE IF NOT EXISTS public.planilux_users (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
     username TEXT NOT NULL,
     email TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
