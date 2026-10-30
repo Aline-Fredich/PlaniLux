@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Board, TemplateType, UserAccount } from './types';
 import {
-  getStoredBoards,
   saveBoard,
   duplicateBoard,
   softDeleteBoard,

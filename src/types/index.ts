@@ -99,6 +99,8 @@ export type ExportTargetFormat = 'A4' | 'Letter' | 'phone_wallpaper' | 'desktop_
 export type GridDensity = 'compact' | 'normal' | 'spacious';
 export type WallpaperTheme = 'dark' | 'light' | 'midnight' | 'emerald' | 'slate';
 
+export type DocumentFont = 'sans' | 'serif' | 'mono' | 'condensed';
+
 export interface PrintSettings {
   format: ExportTargetFormat;
   orientation: 'portrait' | 'landscape';
@@ -109,8 +111,26 @@ export interface PrintSettings {
   printColors: boolean;
   includeNotes: boolean;
   density: GridDensity;
-  cellScale: number; // 70 à 150 (%)
+  cellScale: number; // 30 à 150 (%)
   wallpaperTheme?: WallpaperTheme;
+
+  // Personnalisation intégrale du document (titres, tables, polices, couleurs)
+  customTitle?: string;
+  customSubtitle?: string;
+  fontFamily?: DocumentFont;
+  fontSizeScale?: number; // 50 à 150 (%)
+  headerBgColor?: string;
+  headerTextColor?: string;
+  borderColor?: string;
+  tableScaleOnly?: number; // Réduction ciblée de la table seule (30 à 150 %)
+  forcePureWhiteBg?: boolean; // Garantie fond blanc pur d'impression
+
+  // Interrupteurs pour TOUT masquer ou afficher
+  showLogo?: boolean;
+  showTitle?: boolean;
+  showSubtitle?: boolean;
+  showDate?: boolean;
+  showTimeCol?: boolean;
 }
 
 export interface UserAccount {

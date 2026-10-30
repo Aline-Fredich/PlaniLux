@@ -126,8 +126,13 @@ export const BoardList: React.FC<BoardListProps> = ({
             </p>
           </div>
 
-          <div className="hidden sm:flex" style={{ flexShrink: 0 }}>
-            <PlaniluxLogo size={74} showText={false} />
+          <div className="flex items-center justify-center mt-3 sm:mt-0" style={{ flexShrink: 0 }}>
+            <div className="sm:hidden">
+              <PlaniluxLogo size={46} showText={false} />
+            </div>
+            <div className="hidden sm:block">
+              <PlaniluxLogo size={74} showText={false} />
+            </div>
           </div>
         </div>
       </div>

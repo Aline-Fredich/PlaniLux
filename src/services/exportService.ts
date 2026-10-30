@@ -239,52 +239,91 @@ export const exportBoardToPdf = (board: Board, settings: PrintSettings): Blob =>
   const pageHeight = doc.internal.pageSize.getHeight();
 
   const margin = settings.margins === 'compact' ? 6 : settings.margins === 'none' ? 3 : 12;
-  let currentY = margin + 6;
+  let currentY = margin + 5;
 
-  // Facteur d'échelle et de densité
+  // Facteurs d'échelle et de densité (avec prise en compte de la réduction ciblée de la table)
   const scale = (settings.cellScale || 100) / 100;
-  const densityMultiplier = settings.density === 'compact' ? 0.75 : settings.density === 'spacious' ? 1.35 : 1.0;
+  const tableScale = (settings.tableScaleOnly || 100) / 100;
+  const densityMultiplier = settings.density === 'compact' ? 0.65 : settings.density === 'spacious' ? 1.35 : 1.0;
+  const fontScale = (settings.fontSizeScale || 100) / 100;
 
-  // Titre
-  doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(Math.round(14 * scale));
-  doc.setTextColor(30, 58, 138);
-  doc.text(board.title, margin, currentY);
-  currentY += Math.round(5 * scale);
+  // Titre personnalisé
+  if (settings.showTitle !== false) {
+    const titleText = settings.customTitle || board.title;
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(Math.max(8, Math.round(14 * scale * fontScale)));
+    doc.setTextColor(30, 58, 138);
+    doc.text(titleText, margin, currentY);
+    currentY += Math.max(4, Math.round(5 * scale));
+  }
 
-  // Sous-titre date
-  doc.setFont('Helvetica', 'italic');
-  doc.setFontSize(Math.round(8 * scale));
-  doc.setTextColor(107, 114, 128);
-  doc.text(`Document généré le ${new Date().toLocaleDateString('fr-FR')} • Planilux`, margin, currentY);
-  currentY += Math.round(6 * scale);
+  // Sous-titre personnalisé ou date
+  if (settings.showSubtitle !== false && settings.customSubtitle) {
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(Math.max(6, Math.round(8.5 * scale * fontScale)));
+    doc.setTextColor(75, 85, 99);
+    doc.text(settings.customSubtitle, margin, currentY);
+    currentY += Math.max(3.5, Math.round(4.5 * scale));
+  }
+
+  if (settings.showDate !== false) {
+    doc.setFont('Helvetica', 'italic');
+    doc.setFontSize(Math.max(5.5, Math.round(7.5 * scale * fontScale)));
+    doc.setTextColor(107, 114, 128);
+    doc.text(`Document imprimé le ${new Date().toLocaleDateString('fr-FR')} • Planilux`, margin, currentY);
+    currentY += Math.max(4, Math.round(5.5 * scale));
+  }
 
   const colAxes = board.axes.filter(a => a.axis === 'column').sort((a, b) => a.position - b.position);
   const rowAxes = board.axes.filter(a => a.axis === 'row').sort((a, b) => a.position - b.position);
 
   const availableWidth = pageWidth - (margin * 2);
-  const timeColWidth = Math.min(35, availableWidth * 0.2);
-  const dataColWidth = (availableWidth - timeColWidth) / colAxes.length;
+  const showTime = settings.showTimeCol !== false;
+  const timeColWidth = showTime ? Math.min(32, availableWidth * 0.18 * tableScale) : 0;
+  const dataColWidth = (availableWidth - timeColWidth) / Math.max(1, colAxes.length);
 
-  // Hauteur de ligne dynamique tenant compte de la densité et du zoom
-  const baseCalculated = (pageHeight - currentY - margin - 20) / (rowAxes.length + 1);
-  const rowHeight = Math.max(6, Math.min(32, baseCalculated * densityMultiplier * scale));
+  // Hauteur de ligne dynamique tenant compte de la densité, du zoom et de la table seule
+  const baseCalculated = (pageHeight - currentY - margin - 15) / Math.max(1, rowAxes.length + 1);
+  const rowHeight = Math.max(4.5, Math.min(30, baseCalculated * densityMultiplier * scale * tableScale));
+
+  // Couleur d'en-tête dynamique
+  const headerHex = (settings.headerBgColor || '#f1f5f9').replace('#', '');
+  const headR = parseInt(headerHex.substring(0, 2), 16) || 241;
+  const headG = parseInt(headerHex.substring(2, 4), 16) || 245;
+  const headB = parseInt(headerHex.substring(4, 6), 16) || 249;
+
+  // Couleur de bordure dynamique
+  const borderHex = (settings.borderColor || '#cbd5e1').replace('#', '');
+  const bR = parseInt(borderHex.substring(0, 2), 16) || 203;
+  const bG = parseInt(borderHex.substring(2, 4), 16) || 213;
+  const bB = parseInt(borderHex.substring(4, 6), 16) || 225;
 
   // En-tête de table
-  doc.setFillColor(243, 244, 246);
-  doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
-  doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.setTextColor(55, 65, 81);
-  doc.text('Horaires', margin + (timeColWidth / 2), currentY + (rowHeight / 2) + 2, { align: 'center' });
+  if (showTime) {
+    doc.setFillColor(headR, headG, headB);
+    doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
+    if (settings.showBorders) {
+      doc.setDrawColor(bR, bG, bB);
+      doc.rect(margin, currentY, timeColWidth, rowHeight, 'S');
+    }
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(Math.max(5, Math.round(7.5 * fontScale * tableScale)));
+    doc.setTextColor(30, 41, 59);
+    doc.text('HORAIRE', margin + (timeColWidth / 2), currentY + (rowHeight / 2) + 1.5, { align: 'center' });
+  }
 
   colAxes.forEach((col, idx) => {
     const x = margin + timeColWidth + (idx * dataColWidth);
-    doc.setFillColor(229, 231, 235);
+    doc.setFillColor(headR, headG, headB);
     doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
-    doc.rect(x, currentY, dataColWidth, rowHeight, 'S');
+    if (settings.showBorders) {
+      doc.setDrawColor(bR, bG, bB);
+      doc.rect(x, currentY, dataColWidth, rowHeight, 'S');
+    }
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(Math.max(5, Math.round(7.5 * fontScale * tableScale)));
     doc.setTextColor(17, 24, 39);
-    doc.text(col.label, x + (dataColWidth / 2), currentY + (rowHeight / 2) + 2, { align: 'center' });
+    doc.text(col.label, x + (dataColWidth / 2), currentY + (rowHeight / 2) + 1.5, { align: 'center' });
   });
 
   currentY += rowHeight;
@@ -292,43 +331,50 @@ export const exportBoardToPdf = (board: Board, settings: PrintSettings): Blob =>
   // Lignes de données
   rowAxes.forEach(row => {
     // Colonne d'axe horaire/étiquette
-    doc.setFillColor(249, 250, 251);
-    doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
-    doc.rect(margin, currentY, timeColWidth, rowHeight, 'S');
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(7.5);
-    doc.setTextColor(55, 65, 81);
-    
-    // Si libellé long, tronquer ou diviser
-    const splitLabel = doc.splitTextToSize(row.label, timeColWidth - 4);
-    doc.text(splitLabel, margin + (timeColWidth / 2), currentY + (rowHeight / 2), { align: 'center' });
+    if (showTime) {
+      doc.setFillColor(headR, headG, headB);
+      doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
+      if (settings.showBorders) {
+        doc.setDrawColor(bR, bG, bB);
+        doc.rect(margin, currentY, timeColWidth, rowHeight, 'S');
+      }
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(Math.max(4.5, Math.round(6.8 * fontScale * tableScale)));
+      doc.setTextColor(55, 65, 81);
+      
+      const splitLabel = doc.splitTextToSize(row.label, Math.max(10, timeColWidth - 2));
+      doc.text(splitLabel, margin + (timeColWidth / 2), currentY + (rowHeight / 2) + 1, { align: 'center' });
+    }
 
     // Cellules
     colAxes.forEach((col, colIdx) => {
       const x = margin + timeColWidth + (colIdx * dataColWidth);
       const cellData = board.cells.find(c => c.row_axis_id === row.id && c.column_axis_id === col.id);
 
-      if (cellData && cellData.background_color && settings.printColors) {
+      if (cellData && cellData.background_color && settings.printColors && cellData.background_color !== '#ffffff') {
         const hex = cellData.background_color.replace('#', '');
         const r = parseInt(hex.substring(0, 2), 16) || 255;
         const g = parseInt(hex.substring(2, 4), 16) || 255;
         const b = parseInt(hex.substring(4, 6), 16) || 255;
         doc.setFillColor(r, g, b);
         doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
+      } else {
+        doc.setFillColor(255, 255, 255);
+        doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
       }
 
       if (settings.showBorders) {
-        doc.setDrawColor(209, 213, 219);
+        doc.setDrawColor(bR, bG, bB);
         doc.rect(x, currentY, dataColWidth, rowHeight, 'S');
       }
 
       if (cellData && cellData.content) {
         doc.setFont('Helvetica', cellData.text_style?.bold ? 'bold' : 'normal');
-        doc.setFontSize(7);
+        doc.setFontSize(Math.max(4.5, Math.round(6.5 * fontScale * tableScale)));
         doc.setTextColor(31, 41, 55);
 
-        const lines = doc.splitTextToSize(cellData.content, dataColWidth - 3);
-        const textY = currentY + 4;
+        const lines = doc.splitTextToSize(cellData.content, Math.max(8, dataColWidth - 2));
+        const textY = currentY + (rowHeight > 10 ? 3.5 : 2.5);
         doc.text(lines.slice(0, 4), x + (dataColWidth / 2), textY, { align: 'center' });
       }
     });

@@ -13,9 +13,13 @@ import {
   ZoomIn, 
   ZoomOut, 
   Sparkles,
-  Palette
+  Palette,
+  Type,
+  Sliders,
+  Eye,
+  Minimize2
 } from 'lucide-react';
-import { Board, PrintSettings, ExportTargetFormat, GridDensity, WallpaperTheme } from '../types';
+import { Board, PrintSettings, ExportTargetFormat, GridDensity, WallpaperTheme, DocumentFont } from '../types';
 import { exportBoardToDocx, exportBoardToPdf, exportElementToPng, downloadFile } from '../services/exportService';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
 
@@ -36,9 +40,25 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
     includeNotes: true,
     density: 'normal',
     cellScale: 100,
-    wallpaperTheme: 'midnight'
+    tableScaleOnly: 100,
+    wallpaperTheme: 'light',
+    // Nouveaux réglages de personnalisation intégrale
+    customTitle: board.title,
+    customSubtitle: 'Année 2026-2027 • Emploi du Temps Officiel',
+    fontFamily: 'sans',
+    fontSizeScale: 100,
+    headerBgColor: '#f1f5f9',
+    headerTextColor: '#0f172a',
+    borderColor: '#cbd5e1',
+    forcePureWhiteBg: true,
+    showLogo: true,
+    showTitle: true,
+    showSubtitle: true,
+    showDate: true,
+    showTimeCol: true
   });
 
+  const [activeTab, setActiveTab] = useState<'layout' | 'typography' | 'colors' | 'visibility'>('layout');
   const [isExporting, setIsExporting] = useState<'pdf' | 'docx' | 'png' | null>(null);
   const [exportSuccess, setExportSuccess] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -56,29 +76,41 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
   // Ajustement automatique de l'orientation lors du changement de format
   const handleFormatChange = (newFormat: ExportTargetFormat) => {
     let newOrientation = settings.orientation;
+    let newForceWhite = settings.forcePureWhiteBg;
     if (newFormat === 'phone_wallpaper') {
       newOrientation = 'portrait';
+      newForceWhite = false;
     } else if (newFormat === 'desktop_wallpaper') {
       newOrientation = 'landscape';
+      newForceWhite = false;
+    } else {
+      newForceWhite = true;
     }
     setSettings(prev => ({
       ...prev,
       format: newFormat,
-      orientation: newOrientation
+      orientation: newOrientation,
+      forcePureWhiteBg: newForceWhite
     }));
   };
 
-  // Zoom / Taille des cases
+  // Zoom / Taille des cases globale (30% à 150%)
   const handleScaleChange = (newScale: number) => {
-    const clamped = Math.max(70, Math.min(150, newScale));
+    const clamped = Math.max(30, Math.min(150, newScale));
     setSettings(prev => ({ ...prev, cellScale: clamped }));
+  };
+
+  // Réduire la table seulement (30% à 150%)
+  const handleTableScaleOnlyChange = (newScale: number) => {
+    const clamped = Math.max(30, Math.min(150, newScale));
+    setSettings(prev => ({ ...prev, tableScaleOnly: clamped }));
   };
 
   const handleExportPng = async () => {
     if (!previewRef.current) return;
     setIsExporting('png');
     try {
-      const safeTitle = board.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const safeTitle = (settings.customTitle || board.title).toLowerCase().replace(/[^a-z0-9]/g, '_');
       const suffix = isPhoneWallpaper ? 'fond_ecran_smartphone' : isDesktopWallpaper ? 'fond_ecran_bureau' : 'capture_planning';
       await exportElementToPng(previewRef.current, `${safeTitle}_${suffix}.png`);
       setExportSuccess('Image HD générée et téléchargée avec succès !');
@@ -95,9 +127,9 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
     setIsExporting('pdf');
     try {
       const blob = exportBoardToPdf(board, settings);
-      const safeTitle = board.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const safeTitle = (settings.customTitle || board.title).toLowerCase().replace(/[^a-z0-9]/g, '_');
       downloadFile(blob, `${safeTitle}_${settings.format.toLowerCase()}.pdf`);
-      setExportSuccess('Fichier PDF généré avec succès !');
+      setExportSuccess('Fichier PDF vectoriel généré avec succès !');
       setTimeout(() => setExportSuccess(null), 3000);
     } catch (e) {
       console.error('PDF export error', e);
@@ -111,7 +143,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
     setIsExporting('docx');
     try {
       const blob = await exportBoardToDocx(board, settings);
-      const safeTitle = board.title.toLowerCase().replace(/[^a-z0-9]/g, '_');
+      const safeTitle = (settings.customTitle || board.title).toLowerCase().replace(/[^a-z0-9]/g, '_');
       downloadFile(blob, `${safeTitle}_word.docx`);
       setExportSuccess('Fichier Word DOCX généré avec succès !');
       setTimeout(() => setExportSuccess(null), 3000);
@@ -127,9 +159,21 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
     window.print();
   };
 
-  // Thèmes graphiques pour le fond d'écran
-  const getWallpaperStyles = (theme?: WallpaperTheme): { background: string; color: string; cardBg: string; border: string; headerBg: string; cellBorder: string } => {
-    switch (theme) {
+  // Thèmes graphiques pour le fond d'écran ou fond d'impression
+  const getWallpaperStyles = () => {
+    if (!isWallpaperMode || settings.forcePureWhiteBg) {
+      return {
+        background: '#ffffff',
+        color: '#0f172a',
+        cardBg: '#ffffff',
+        border: settings.borderColor || '#cbd5e1',
+        headerBg: settings.headerBgColor || '#f1f5f9',
+        headerText: settings.headerTextColor || '#0f172a',
+        cellBorder: settings.borderColor || '#cbd5e1'
+      };
+    }
+
+    switch (settings.wallpaperTheme) {
       case 'midnight':
         return {
           background: 'linear-gradient(135deg, #090d16 0%, #111a2e 50%, #0a0f1d 100%)',
@@ -137,6 +181,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
           cardBg: 'rgba(255, 255, 255, 0.08)',
           border: 'rgba(255, 255, 255, 0.16)',
           headerBg: 'rgba(30, 41, 59, 0.7)',
+          headerText: '#f8fafc',
           cellBorder: 'rgba(255, 255, 255, 0.1)'
         };
       case 'emerald':
@@ -146,6 +191,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
           cardBg: 'rgba(255, 255, 255, 0.08)',
           border: 'rgba(52, 211, 153, 0.25)',
           headerBg: 'rgba(6, 78, 59, 0.6)',
+          headerText: '#ecfdf5',
           cellBorder: 'rgba(52, 211, 153, 0.15)'
         };
       case 'slate':
@@ -155,56 +201,83 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
           cardBg: 'rgba(255, 255, 255, 0.06)',
           border: 'rgba(255, 255, 255, 0.14)',
           headerBg: 'rgba(39, 39, 42, 0.8)',
+          headerText: '#f4f4f5',
           cellBorder: 'rgba(255, 255, 255, 0.1)'
         };
       case 'light':
       default:
         return {
-          background: 'linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%)',
+          background: '#ffffff',
           color: '#0f172a',
-          cardBg: 'rgba(255, 255, 255, 0.85)',
-          border: 'rgba(203, 213, 225, 0.8)',
-          headerBg: '#f1f5f9',
-          cellBorder: '#e2e8f0'
+          cardBg: '#ffffff',
+          border: settings.borderColor || '#cbd5e1',
+          headerBg: settings.headerBgColor || '#f1f5f9',
+          headerText: settings.headerTextColor || '#0f172a',
+          cellBorder: settings.borderColor || '#cbd5e1'
         };
     }
   };
 
-  const wpStyle = getWallpaperStyles(isWallpaperMode ? settings.wallpaperTheme : 'light');
+  const wpStyle = getWallpaperStyles();
 
-  // Multiplicateurs de taille selon densité et échelle
-  const scaleRatio = (settings.cellScale || 100) / 100;
-  const densityPadding = settings.density === 'compact' ? '3px 4px' : settings.density === 'spacious' ? '10px 8px' : '6px 6px';
-  const cellFontSize = `${Math.max(0.55, 0.72 * scaleRatio)}rem`;
+  // Multiplicateurs de taille selon densité, échelle globale et échelle spécifique table
+  const globalScale = (settings.cellScale || 100) / 100;
+  const tableScale = (settings.tableScaleOnly || 100) / 100;
+  const fontMultiplier = ((settings.fontSizeScale || 100) / 100) * globalScale * tableScale;
+
+  // Calcul du padding fin
+  let densityPadding = '5px 5px';
+  if (settings.density === 'compact') densityPadding = '2px 3px';
+  else if (settings.density === 'spacious') densityPadding = '8px 7px';
+
+  // Police de caractères dynamique
+  const getFontFamily = (font?: DocumentFont) => {
+    switch (font) {
+      case 'serif':
+        return '"Georgia", "Times New Roman", serif';
+      case 'mono':
+        return '"Courier New", "Fira Code", monospace';
+      case 'condensed':
+        return '"Arial Narrow", "Helvetica Condensed", sans-serif';
+      case 'sans':
+      default:
+        return 'var(--font-sans, "Inter", sans-serif)';
+    }
+  };
+
+  const currentFontFamily = getFontFamily(settings.fontFamily);
+  const cellFontSize = `${Math.max(0.42, 0.75 * fontMultiplier)}rem`;
+  const headerFontSize = `${Math.max(0.48, 0.80 * fontMultiplier)}rem`;
 
   return (
     <div className="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="print-modal-title">
-      <div className="modal-card print-modal">
+      <div className="modal-card print-modal" style={{ maxWidth: '1040px' }}>
+        
         {/* En-tête de modale */}
         <div className="modal-header">
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
             <Printer size={20} color="var(--primary)" />
-            <h2 id="print-modal-title" className="modal-title">Impression & Export Multi-Formats</h2>
+            <h2 id="print-modal-title" className="modal-title">Studio d'Impression & Personnalisation Complète</h2>
           </div>
           <button className="btn-ghost btn-icon" onClick={onClose} aria-label="Fermer la modale">
             <X size={18} />
           </button>
         </div>
 
-        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <div className="modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           
           {/* SÉLECTEUR DE FORMAT CIBLE (Appareils & Papier) */}
           <div>
-            <label className="form-label" style={{ fontWeight: 600, marginBottom: '0.5rem', display: 'block' }}>
-              Format d'adaptation & Appareil :
+            <label className="form-label" style={{ fontWeight: 600, marginBottom: '0.4rem', display: 'block', fontSize: '0.85rem' }}>
+              Format de destination :
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(135px, 1fr))', gap: '0.5rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.45rem' }}>
               
               <button
                 type="button"
                 onClick={() => handleFormatChange('A4')}
                 style={{
-                  padding: '0.65rem 0.5rem',
+                  padding: '0.55rem 0.4rem',
                   borderRadius: 'var(--radius-sm)',
                   border: settings.format === 'A4' ? '2px solid var(--primary)' : '1px solid var(--border-medium)',
                   background: settings.format === 'A4' ? 'var(--primary-light)' : 'var(--bg-tertiary)',
@@ -212,22 +285,22 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.35rem',
+                  gap: '0.25rem',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  fontSize: '0.78rem'
+                  fontSize: '0.76rem'
                 }}
               >
-                <FileSpreadsheet size={18} />
+                <FileSpreadsheet size={16} />
                 <span>Feuille A4</span>
-                <span style={{ fontSize: '0.65rem', opacity: 0.75, fontWeight: 400 }}>210 × 297 mm</span>
+                <span style={{ fontSize: '0.62rem', opacity: 0.75, fontWeight: 400 }}>210 × 297 mm</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleFormatChange('phone_wallpaper')}
                 style={{
-                  padding: '0.65rem 0.5rem',
+                  padding: '0.55rem 0.4rem',
                   borderRadius: 'var(--radius-sm)',
                   border: settings.format === 'phone_wallpaper' ? '2px solid var(--primary)' : '1px solid var(--border-medium)',
                   background: settings.format === 'phone_wallpaper' ? 'var(--primary-light)' : 'var(--bg-tertiary)',
@@ -235,22 +308,22 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.35rem',
+                  gap: '0.25rem',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  fontSize: '0.78rem'
+                  fontSize: '0.76rem'
                 }}
               >
-                <Smartphone size={18} />
-                <span>Fond d'écran Mobile</span>
-                <span style={{ fontSize: '0.65rem', opacity: 0.75, fontWeight: 400 }}>9:16 Vertical</span>
+                <Smartphone size={16} />
+                <span>Fond Mobile</span>
+                <span style={{ fontSize: '0.62rem', opacity: 0.75, fontWeight: 400 }}>9:16 Vertical</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleFormatChange('desktop_wallpaper')}
                 style={{
-                  padding: '0.65rem 0.5rem',
+                  padding: '0.55rem 0.4rem',
                   borderRadius: 'var(--radius-sm)',
                   border: settings.format === 'desktop_wallpaper' ? '2px solid var(--primary)' : '1px solid var(--border-medium)',
                   background: settings.format === 'desktop_wallpaper' ? 'var(--primary-light)' : 'var(--bg-tertiary)',
@@ -258,22 +331,22 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.35rem',
+                  gap: '0.25rem',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  fontSize: '0.78rem'
+                  fontSize: '0.76rem'
                 }}
               >
-                <Monitor size={18} />
-                <span>Fond d'écran PC</span>
-                <span style={{ fontSize: '0.65rem', opacity: 0.75, fontWeight: 400 }}>16:9 Panoramique</span>
+                <Monitor size={16} />
+                <span>Fond PC</span>
+                <span style={{ fontSize: '0.62rem', opacity: 0.75, fontWeight: 400 }}>16:9 Panoramique</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleFormatChange('tablet')}
                 style={{
-                  padding: '0.65rem 0.5rem',
+                  padding: '0.55rem 0.4rem',
                   borderRadius: 'var(--radius-sm)',
                   border: settings.format === 'tablet' ? '2px solid var(--primary)' : '1px solid var(--border-medium)',
                   background: settings.format === 'tablet' ? 'var(--primary-light)' : 'var(--bg-tertiary)',
@@ -281,22 +354,22 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.35rem',
+                  gap: '0.25rem',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  fontSize: '0.78rem'
+                  fontSize: '0.76rem'
                 }}
               >
-                <Tablet size={18} />
-                <span>Format Tablette</span>
-                <span style={{ fontSize: '0.65rem', opacity: 0.75, fontWeight: 400 }}>iPad / Android</span>
+                <Tablet size={16} />
+                <span>Tablette</span>
+                <span style={{ fontSize: '0.62rem', opacity: 0.75, fontWeight: 400 }}>iPad / Android</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => handleFormatChange('Letter')}
                 style={{
-                  padding: '0.65rem 0.5rem',
+                  padding: '0.55rem 0.4rem',
                   borderRadius: 'var(--radius-sm)',
                   border: settings.format === 'Letter' ? '2px solid var(--primary)' : '1px solid var(--border-medium)',
                   background: settings.format === 'Letter' ? 'var(--primary-light)' : 'var(--bg-tertiary)',
@@ -304,216 +377,479 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.35rem',
+                  gap: '0.25rem',
                   cursor: 'pointer',
                   fontWeight: 600,
-                  fontSize: '0.78rem'
+                  fontSize: '0.76rem'
                 }}
               >
-                <FileSpreadsheet size={18} />
+                <FileSpreadsheet size={16} />
                 <span>US Letter</span>
-                <span style={{ fontSize: '0.65rem', opacity: 0.75, fontWeight: 400 }}>216 × 279 mm</span>
+                <span style={{ fontSize: '0.62rem', opacity: 0.75, fontWeight: 400 }}>216 × 279 mm</span>
               </button>
-
             </div>
           </div>
 
-          {/* Panneau de réglages fins (Orientation, Taille des cases, Zoom, Thème) */}
-          <div style={{ background: 'var(--bg-tertiary)', padding: '1.25rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border-subtle)' }}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1.25rem' }}>
-              
-              {/* Orientation (Portrait vs Paysage) */}
-              <div className="form-group">
-                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>Orientation</label>
-                <select
-                  value={settings.orientation}
-                  onChange={(e) => setSettings({ ...settings, orientation: e.target.value as 'portrait' | 'landscape' })}
-                  disabled={isPhoneWallpaper || isDesktopWallpaper}
-                  style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                >
-                  <option value="landscape">Paysage (Horizontal — Recommandé)</option>
-                  <option value="portrait">Portrait (Vertical)</option>
-                </select>
-                {isPhoneWallpaper && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Fixé en vertical (9:16)</span>}
-                {isDesktopWallpaper && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Fixé en paysage (16:9)</span>}
-              </div>
+          {/* ONGLET DE PERSONNALISATION INTÉGRALE */}
+          <div style={{ background: 'var(--bg-tertiary)', padding: '0.85rem 1rem', borderRadius: 'var(--radius-md)', border: '1px solid var(--glass-border-subtle)' }}>
+            
+            {/* Barre d'onglets de réglages */}
+            <div style={{ display: 'flex', gap: '0.4rem', borderBottom: '1px solid var(--border-light)', paddingBottom: '0.6rem', marginBottom: '0.85rem', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                onClick={() => setActiveTab('layout')}
+                className={`btn-glass-pill ${activeTab === 'layout' ? 'active' : ''}`}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem' }}
+              >
+                <Sliders size={13} />
+                <span>Mise en page & Réduction</span>
+              </button>
 
-              {/* Densité des cases (Compact / Standard / Spacieux) */}
-              <div className="form-group">
-                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem' }}>Densité des cases</label>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  {(['compact', 'normal', 'spacious'] as GridDensity[]).map((d) => (
-                    <button
-                      key={d}
-                      type="button"
-                      onClick={() => setSettings({ ...settings, density: d })}
-                      style={{
-                        flex: 1,
-                        padding: '0.4rem 0.2rem',
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        borderRadius: '6px',
-                        border: '1px solid',
-                        borderColor: settings.density === d ? 'var(--primary)' : 'var(--border-medium)',
-                        background: settings.density === d ? 'var(--primary)' : 'var(--bg-primary)',
-                        color: settings.density === d ? '#ffffff' : 'var(--text-secondary)',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {d === 'compact' ? 'Compact' : d === 'normal' ? 'Standard' : 'Spacieux'}
-                    </button>
-                  ))}
+              <button
+                type="button"
+                onClick={() => setActiveTab('typography')}
+                className={`btn-glass-pill ${activeTab === 'typography' ? 'active' : ''}`}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem' }}
+              >
+                <Type size={13} />
+                <span>Titres & Polices</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('colors')}
+                className={`btn-glass-pill ${activeTab === 'colors' ? 'active' : ''}`}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem' }}
+              >
+                <Palette size={13} />
+                <span>Couleurs & Arrière-plan</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('visibility')}
+                className={`btn-glass-pill ${activeTab === 'visibility' ? 'active' : ''}`}
+                style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.78rem' }}
+              >
+                <Eye size={13} />
+                <span>Masquer / Afficher tout</span>
+              </button>
+            </div>
+
+            {/* CONTENU ONGLET 1 : MISE EN PAGE & RÉDUCTION EXTRÊME */}
+            {activeTab === 'layout' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+                
+                {/* Orientation */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem' }}>Orientation</label>
+                  <select
+                    value={settings.orientation}
+                    onChange={(e) => setSettings({ ...settings, orientation: e.target.value as 'portrait' | 'landscape' })}
+                    disabled={isPhoneWallpaper || isDesktopWallpaper}
+                    style={{ width: '100%', padding: '0.4rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                  >
+                    <option value="landscape">Paysage (Horizontal — Recommandé)</option>
+                    <option value="portrait">Portrait (Vertical)</option>
+                  </select>
                 </div>
-              </div>
 
-              {/* Curseur de Zoom / Taille des cases (70% à 150%) */}
-              <div className="form-group">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.3rem' }}>
-                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem', margin: 0 }}>
-                    Taille des cases : {settings.cellScale}%
-                  </label>
-                  <div style={{ display: 'flex', gap: '3px' }}>
-                    <button 
-                      type="button" 
-                      onClick={() => handleScaleChange(settings.cellScale - 10)}
-                      className="btn-ghost btn-icon"
-                      title="Réduire les cases"
-                      style={{ padding: '2px' }}
-                    >
-                      <ZoomOut size={14} />
-                    </button>
-                    <button 
-                      type="button" 
-                      onClick={() => handleScaleChange(settings.cellScale + 10)}
-                      className="btn-ghost btn-icon"
-                      title="Agrandir les cases"
-                      style={{ padding: '2px' }}
-                    >
-                      <ZoomIn size={14} />
-                    </button>
+                {/* Densité des cases */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem' }}>Densité des cases</label>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    {(['compact', 'normal', 'spacious'] as GridDensity[]).map((d) => (
+                      <button
+                        key={d}
+                        type="button"
+                        onClick={() => setSettings({ ...settings, density: d })}
+                        style={{
+                          flex: 1,
+                          padding: '0.35rem 0.2rem',
+                          fontSize: '0.73rem',
+                          fontWeight: 600,
+                          borderRadius: '6px',
+                          border: '1px solid',
+                          borderColor: settings.density === d ? 'var(--primary)' : 'var(--border-medium)',
+                          background: settings.density === d ? 'var(--primary)' : 'var(--bg-primary)',
+                          color: settings.density === d ? '#ffffff' : 'var(--text-secondary)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {d === 'compact' ? 'Micro' : d === 'normal' ? 'Standard' : 'Aéré'}
+                      </button>
+                    ))}
                   </div>
                 </div>
-                <input
-                  type="range"
-                  min="70"
-                  max="150"
-                  step="5"
-                  value={settings.cellScale}
-                  onChange={(e) => handleScaleChange(Number(e.target.value))}
-                  style={{ width: '100%', cursor: 'pointer' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.65rem', color: 'var(--text-muted)' }}>
-                  <span>Réduit (70%)</span>
-                  <span>100%</span>
-                  <span>Agrandie (150%)</span>
+
+                {/* Curseur de Zoom Global (30% à 150%) */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                    <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem', margin: 0 }}>
+                      Échelle globale : {settings.cellScale}%
+                    </label>
+                    <div style={{ display: 'flex', gap: '3px' }}>
+                      <button 
+                        type="button" 
+                        onClick={() => handleScaleChange(settings.cellScale - 10)}
+                        className="btn-ghost btn-icon p-1"
+                        title="Réduire (-10%)"
+                      >
+                        <ZoomOut size={13} />
+                      </button>
+                      <button 
+                        type="button" 
+                        onClick={() => handleScaleChange(settings.cellScale + 10)}
+                        className="btn-ghost btn-icon p-1"
+                        title="Agrandir (+10%)"
+                      >
+                        <ZoomIn size={13} />
+                      </button>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="150"
+                    step="5"
+                    value={settings.cellScale}
+                    onChange={(e) => handleScaleChange(Number(e.target.value))}
+                    style={{ width: '100%', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                    <span>Très Petit (30%)</span>
+                    <span>100%</span>
+                    <span>Grand (150%)</span>
+                  </div>
                 </div>
-              </div>
 
-              {/* Thème visuel (pour fond d'écran ou impression colorée) */}
-              <div className="form-group">
-                <label className="form-label" style={{ fontWeight: 600, fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
-                  <Palette size={14} />
-                  <span>Ambiance / Thème</span>
+                {/* RÉDUIRE LA TABLE SEULEMENT (30% à 150%) */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                    <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem', margin: 0, color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                      <Minimize2 size={13} />
+                      <span>Réduire la table seulement : {settings.tableScaleOnly || 100}%</span>
+                    </label>
+                  </div>
+                  <input
+                    type="range"
+                    min="30"
+                    max="150"
+                    step="5"
+                    value={settings.tableScaleOnly || 100}
+                    onChange={(e) => handleTableScaleOnlyChange(Number(e.target.value))}
+                    style={{ width: '100%', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                    <span>Micro-Table (30%)</span>
+                    <span>100%</span>
+                    <span>Large (150%)</span>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* CONTENU ONGLET 2 : TITRES & POLICES */}
+            {activeTab === 'typography' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+                
+                {/* Titre du Document personnalisé */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem' }}>Titre du document</label>
+                  <input
+                    type="text"
+                    value={settings.customTitle || ''}
+                    onChange={(e) => setSettings({ ...settings, customTitle: e.target.value })}
+                    placeholder="Titre imprimé sur la feuille"
+                    style={{ width: '100%', padding: '0.4rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                  />
+                </div>
+
+                {/* Sous-titre officiel */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem' }}>Sous-titre / Établissement</label>
+                  <input
+                    type="text"
+                    value={settings.customSubtitle || ''}
+                    onChange={(e) => setSettings({ ...settings, customSubtitle: e.target.value })}
+                    placeholder="Ex : Classe de Terminale, Semestre 1..."
+                    style={{ width: '100%', padding: '0.4rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                  />
+                </div>
+
+                {/* Famille de Police */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem' }}>Style de Police (Typographie)</label>
+                  <select
+                    value={settings.fontFamily || 'sans'}
+                    onChange={(e) => setSettings({ ...settings, fontFamily: e.target.value as DocumentFont })}
+                    style={{ width: '100%', padding: '0.4rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.82rem' }}
+                  >
+                    <option value="sans">Moderne Sans (Inter / Outfit)</option>
+                    <option value="serif">Élégante Serif (Document Académique)</option>
+                    <option value="condensed">Condensée Compacte (Gain d'espace)</option>
+                    <option value="mono">Monospace Technique (Grille nette)</option>
+                  </select>
+                </div>
+
+                {/* Échelle du texte */}
+                <div className="form-group">
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
+                    <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem', margin: 0 }}>
+                      Taille de police : {settings.fontSizeScale || 100}%
+                    </label>
+                  </div>
+                  <input
+                    type="range"
+                    min="50"
+                    max="150"
+                    step="5"
+                    value={settings.fontSizeScale || 100}
+                    onChange={(e) => setSettings({ ...settings, fontSizeScale: Number(e.target.value) })}
+                    style={{ width: '100%', cursor: 'pointer' }}
+                  />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.62rem', color: 'var(--text-muted)' }}>
+                    <span>Micro (50%)</span>
+                    <span>100%</span>
+                    <span>Gros (150%)</span>
+                  </div>
+                </div>
+
+              </div>
+            )}
+
+            {/* CONTENU ONGLET 3 : COULEURS & FOND BLANC PUR */}
+            {activeTab === 'colors' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '1rem' }}>
+                
+                {/* Forcer Fond Blanc Pur (Règle d'or de l'impression) */}
+                <div className="form-group" style={{ gridColumn: '1 / -1', background: 'rgba(255,255,255,0.6)', padding: '0.6rem 0.8rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontWeight: 600, fontSize: '0.84rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      checked={settings.forcePureWhiteBg !== false}
+                      onChange={(e) => setSettings({ ...settings, forcePureWhiteBg: e.target.checked })}
+                    />
+                    <span>📄 Forcer l'arrière-plan en Blanc Pur (Zéro encre gaspillée à l'impression)</span>
+                  </label>
+                </div>
+
+                {/* Couleur d'en-tête du tableau */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem' }}>Fond des en-têtes (Jours & Heures)</label>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={settings.headerBgColor || '#f1f5f9'}
+                      onChange={(e) => setSettings({ ...settings, headerBgColor: e.target.value })}
+                      style={{ width: '36px', height: '32px', borderRadius: '4px', border: '1px solid var(--border-medium)', cursor: 'pointer' }}
+                    />
+                    <select
+                      value={settings.headerBgColor || '#f1f5f9'}
+                      onChange={(e) => setSettings({ ...settings, headerBgColor: e.target.value })}
+                      style={{ flex: 1, padding: '0.35rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.78rem' }}
+                    >
+                      <option value="#f1f5f9">Gris clair neutre</option>
+                      <option value="#ffffff">Blanc épuré</option>
+                      <option value="#dbeafe">Bleu institutionnel pastel</option>
+                      <option value="#dcfce7">Vert menthe pastel</option>
+                      <option value="#fef3c7">Ambré doux</option>
+                      <option value="#0f172a">Noir profond (Contraste fort)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Couleur des bordures */}
+                <div className="form-group">
+                  <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem' }}>Couleur du quadrillage / bordures</label>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                    <input
+                      type="color"
+                      value={settings.borderColor || '#cbd5e1'}
+                      onChange={(e) => setSettings({ ...settings, borderColor: e.target.value })}
+                      style={{ width: '36px', height: '32px', borderRadius: '4px', border: '1px solid var(--border-medium)', cursor: 'pointer' }}
+                    />
+                    <select
+                      value={settings.borderColor || '#cbd5e1'}
+                      onChange={(e) => setSettings({ ...settings, borderColor: e.target.value })}
+                      style={{ flex: 1, padding: '0.35rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.78rem' }}
+                    >
+                      <option value="#cbd5e1">Gris doux discret</option>
+                      <option value="#64748b">Gris ardoise net</option>
+                      <option value="#000000">Noir imprimeur précis</option>
+                      <option value="#3b82f6">Bleu Planilux</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Thème Fond d'écran (si format wallpaper) */}
+                {isWallpaperMode && (
+                  <div className="form-group">
+                    <label className="form-label" style={{ fontWeight: 600, fontSize: '0.82rem' }}>Thème d'ambiance Fond d'écran</label>
+                    <select
+                      value={settings.wallpaperTheme}
+                      onChange={(e) => setSettings({ ...settings, wallpaperTheme: e.target.value as WallpaperTheme, forcePureWhiteBg: false })}
+                      style={{ width: '100%', padding: '0.4rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)', fontSize: '0.8rem' }}
+                    >
+                      <option value="midnight">Nuit Sombre (Midnight Blue)</option>
+                      <option value="emerald">Émeraude & Forêt</option>
+                      <option value="slate">Ardoise & Carbone</option>
+                      <option value="light">Clair (Minimaliste)</option>
+                    </select>
+                  </div>
+                )}
+
+              </div>
+            )}
+
+            {/* CONTENU ONGLET 4 : VISIBILITÉ TOTALE (TOUT MASQUER OU AFFICHER) */}
+            {activeTab === 'visibility' && (
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(190px, 1fr))', gap: '0.65rem' }}>
+                
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.showLogo !== false}
+                    onChange={(e) => setSettings({ ...settings, showLogo: e.target.checked })}
+                  />
+                  <span>Logo Officiel Planilux</span>
                 </label>
-                <select
-                  value={settings.wallpaperTheme}
-                  onChange={(e) => setSettings({ ...settings, wallpaperTheme: e.target.value as WallpaperTheme })}
-                  style={{ width: '100%', padding: '0.45rem', borderRadius: '6px', border: '1px solid var(--border-medium)', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                >
-                  <option value="midnight">Nuit Sombre (Midnight Blue)</option>
-                  <option value="emerald">Émeraude & Forêt</option>
-                  <option value="slate">Ardoise & Carbone</option>
-                  <option value="light">Clair (Papier & Bureau)</option>
-                </select>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.showTitle !== false}
+                    onChange={(e) => setSettings({ ...settings, showTitle: e.target.checked })}
+                  />
+                  <span>Titre du document</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.showSubtitle !== false}
+                    onChange={(e) => setSettings({ ...settings, showSubtitle: e.target.checked })}
+                  />
+                  <span>Sous-titre / Établissement</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.showTimeCol !== false}
+                    onChange={(e) => setSettings({ ...settings, showTimeCol: e.target.checked })}
+                  />
+                  <span>Colonne des Horaires</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.showDate !== false}
+                    onChange={(e) => setSettings({ ...settings, showDate: e.target.checked })}
+                  />
+                  <span>Date & Signature</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.showBorders}
+                    onChange={(e) => setSettings({ ...settings, showBorders: e.target.checked })}
+                  />
+                  <span>Quadrillage des cases</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.printColors}
+                    onChange={(e) => setSettings({ ...settings, printColors: e.target.checked })}
+                  />
+                  <span>Couleurs de fond des cours</span>
+                </label>
+
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.82rem', cursor: 'pointer' }}>
+                  <input
+                    type="checkbox"
+                    checked={settings.includeNotes}
+                    onChange={(e) => setSettings({ ...settings, includeNotes: e.target.checked })}
+                  />
+                  <span>Notes de bas de tableau</span>
+                </label>
+
               </div>
+            )}
 
-            </div>
-
-            {/* Options secondaires (Quadrillage, Couleurs, Notes) */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', marginTop: '1rem', paddingTop: '0.8rem', borderTop: '1px solid var(--border-light)' }}>
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={settings.printColors}
-                  onChange={(e) => setSettings({ ...settings, printColors: e.target.checked })}
-                />
-                Couleurs de fond des cours
-              </label>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={settings.showBorders}
-                  onChange={(e) => setSettings({ ...settings, showBorders: e.target.checked })}
-                />
-                Quadrillage visible
-              </label>
-
-              <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontSize: '0.85rem', cursor: 'pointer' }}>
-                <input
-                  type="checkbox"
-                  checked={settings.includeNotes}
-                  onChange={(e) => setSettings({ ...settings, includeNotes: e.target.checked })}
-                />
-                Notes de bas de tableau
-              </label>
-            </div>
           </div>
 
           {/* Avertissement lisibilité portrait si trop de colonnes */}
           {isTooWideForPortrait && (
-            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '0.75rem 1rem', borderRadius: 'var(--radius-md)', display: 'flex', gap: '0.6rem', alignItems: 'center', fontSize: '0.85rem' }}>
-              <AlertTriangle size={18} style={{ flexShrink: 0 }} />
+            <div style={{ background: '#fffbeb', border: '1px solid #fde68a', color: '#92400e', padding: '0.6rem 0.8rem', borderRadius: 'var(--radius-md)', display: 'flex', gap: '0.5rem', alignItems: 'center', fontSize: '0.8rem' }}>
+              <AlertTriangle size={16} style={{ flexShrink: 0 }} />
               <div>
-                <strong>Conseil de mise en page :</strong> Avec {colAxes.length} colonnes, l'orientation Paysage offrira une lecture plus aérée de vos cours.
+                <strong>Conseil de mise en page :</strong> Avec {colAxes.length} colonnes, l'orientation Paysage offrira une lecture plus nette de vos cours.
               </div>
             </div>
           )}
 
           {/* BOÎTE D'APERÇU RÉALISTE EN DIRECT */}
-          <div className="print-preview-box" style={{ background: isWallpaperMode ? 'rgba(0, 0, 0, 0.4)' : 'var(--bg-tertiary)' }}>
+          <div className="print-preview-box" style={{ background: isWallpaperMode && !settings.forcePureWhiteBg ? 'rgba(0, 0, 0, 0.4)' : '#e2e8f0' }}>
             <div
               ref={previewRef}
-              className={`print-page-sheet ${isPhoneWallpaper ? 'wallpaper-phone-frame' : isDesktopWallpaper ? 'wallpaper-desktop-frame' : ''}`}
+              className={`print-page-sheet ${isPhoneWallpaper && !settings.forcePureWhiteBg ? 'wallpaper-phone-frame' : isDesktopWallpaper && !settings.forcePureWhiteBg ? 'wallpaper-desktop-frame' : ''}`}
               style={{
                 aspectRatio: isPhoneWallpaper ? '9 / 16' : isDesktopWallpaper ? '16 / 9' : settings.orientation === 'landscape' ? '1.414' : '0.707',
                 background: wpStyle.background,
+                backgroundColor: wpStyle.background,
                 color: wpStyle.color,
-                transition: 'all 0.25s ease'
+                fontFamily: currentFontFamily,
+                transition: 'all 0.2s ease'
               }}
             >
-              {/* Titre & Signature (Feuille pure d'emploi du temps) */}
-              <div style={{ borderBottom: `2px solid ${isWallpaperMode ? wpStyle.border : '#2563eb'}`, paddingBottom: '0.6rem', marginBottom: '0.75rem' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <PlaniluxLogo size={Math.round(22 * scaleRatio)} />
-                    <div>
-                      <h3 style={{ fontSize: `${Math.max(0.85, 1.15 * scaleRatio)}rem`, color: isWallpaperMode ? wpStyle.color : '#1e40af', margin: 0, fontWeight: 700, lineHeight: 1.2 }}>
-                        {board.title}
-                      </h3>
-                      <span style={{ fontSize: '0.68rem', opacity: 0.8 }}>
-                        {board.template_type.toUpperCase()} • Planilux
-                      </span>
+              {/* En-tête personnalisé du document */}
+              {(settings.showTitle !== false || settings.showSubtitle !== false || settings.showLogo !== false) && (
+                <div style={{ borderBottom: `2px solid ${wpStyle.border}`, paddingBottom: '0.5rem', marginBottom: '0.65rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                      {settings.showLogo !== false && (
+                        <PlaniluxLogo size={Math.round(26 * globalScale)} />
+                      )}
+                      <div>
+                        {settings.showTitle !== false && (
+                          <h3 style={{ fontSize: `${Math.max(0.85, 1.20 * fontMultiplier)}rem`, color: isWallpaperMode && !settings.forcePureWhiteBg ? wpStyle.color : '#1e3a8a', margin: 0, fontWeight: 800, lineHeight: 1.2 }}>
+                            {settings.customTitle || board.title}
+                          </h3>
+                        )}
+                        {settings.showSubtitle !== false && settings.customSubtitle && (
+                          <div style={{ fontSize: `${Math.max(0.60, 0.75 * fontMultiplier)}rem`, opacity: 0.85, marginTop: '2px', fontWeight: 500 }}>
+                            {settings.customSubtitle}
+                          </div>
+                        )}
+                      </div>
                     </div>
+                    {settings.showDate !== false && (
+                      <span style={{ fontSize: '0.65rem', opacity: 0.75, textAlign: 'right' }}>
+                        {new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </span>
+                    )}
                   </div>
-                  {isWallpaperMode && (
-                    <span style={{ fontSize: '0.65rem', padding: '3px 8px', borderRadius: '999px', background: 'rgba(255,255,255,0.18)', fontWeight: 600 }}>
-                      {isPhoneWallpaper ? 'Format 9:16' : 'Format 16:9'}
-                    </span>
-                  )}
                 </div>
-              </div>
+              )}
 
-              {/* Grille dynamique avec échelle et couleurs */}
+              {/* Grille dynamique avec micro-échelle et personnalisation des styles */}
               <div style={{ overflow: 'hidden', flex: 1, border: settings.showBorders ? `1px solid ${wpStyle.cellBorder}` : 'none', borderRadius: '4px' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: cellFontSize }}>
                   <thead>
-                    <tr style={{ background: wpStyle.headerBg }}>
-                      <th style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, textAlign: 'center', fontWeight: 800, letterSpacing: '0.04em' }}>
-                        HORAIRE
-                      </th>
+                    <tr style={{ background: wpStyle.headerBg, color: wpStyle.headerText }}>
+                      {settings.showTimeCol !== false && (
+                        <th style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, textAlign: 'center', fontWeight: 800, letterSpacing: '0.04em', fontSize: headerFontSize }}>
+                          HORAIRE
+                        </th>
+                      )}
                       {colAxes.map(c => (
-                        <th key={c.id} style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, textAlign: 'center', fontWeight: 600 }}>
+                        <th key={c.id} style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, textAlign: 'center', fontWeight: 700, fontSize: headerFontSize }}>
                           {c.label}
                         </th>
                       ))}
@@ -522,14 +858,16 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                   <tbody>
                     {rowAxes.map(r => (
                       <tr key={r.id}>
-                        <td style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, background: wpStyle.headerBg, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap' }}>
-                          {r.label}
-                        </td>
+                        {settings.showTimeCol !== false && (
+                          <td style={{ padding: densityPadding, border: `1px solid ${wpStyle.cellBorder}`, background: wpStyle.headerBg, color: wpStyle.headerText, fontWeight: 700, textAlign: 'center', whiteSpace: 'nowrap', fontSize: cellFontSize }}>
+                            {r.label}
+                          </td>
+                        )}
                         {colAxes.map(c => {
                           const cell = board.cells.find(cell => cell.row_axis_id === r.id && cell.column_axis_id === c.id);
                           const cellBg = settings.printColors && cell?.background_color && cell.background_color !== '#ffffff' 
                             ? cell.background_color 
-                            : isWallpaperMode ? 'transparent' : 'white';
+                            : isWallpaperMode && !settings.forcePureWhiteBg ? 'transparent' : '#ffffff';
                           
                           const cellTxt = settings.printColors && cell?.text_color ? cell.text_color : wpStyle.color;
                           const cellStyle = cell?.text_style || {};
@@ -545,7 +883,9 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                                 fontWeight: cellStyle.bold ? 'bold' : 'normal',
                                 fontStyle: cellStyle.italic ? 'italic' : 'normal',
                                 textDecoration: cellStyle.underline ? 'underline' : 'none',
-                                textAlign: cellStyle.align || 'center'
+                                textAlign: cellStyle.align || 'center',
+                                verticalAlign: 'middle',
+                                wordBreak: 'break-word'
                               }}
                             >
                               {cell?.content ? cell.content : ''}
@@ -560,7 +900,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
 
               {/* Notes si cochées */}
               {settings.includeNotes && board.settings.notes && (
-                <div style={{ marginTop: '0.6rem', fontSize: '0.68rem', opacity: 0.85, borderTop: `1px solid ${wpStyle.cellBorder}`, paddingTop: '0.4rem' }}>
+                <div style={{ marginTop: '0.5rem', fontSize: '0.66rem', opacity: 0.85, borderTop: `1px solid ${wpStyle.cellBorder}`, paddingTop: '0.35rem' }}>
                   <strong>Notes :</strong> {board.settings.notes}
                 </div>
               )}
@@ -569,18 +909,18 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
 
           {/* Message de succès d'export */}
           {exportSuccess && (
-            <div style={{ background: 'var(--success-bg)', color: 'var(--success-text)', padding: '0.65rem 1rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem', fontWeight: 500 }}>
-              <CheckCircle size={18} />
+            <div style={{ background: 'var(--success-bg)', color: 'var(--success-text)', padding: '0.65rem 1rem', borderRadius: 'var(--radius-md)', display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.88rem', fontWeight: 500 }}>
+              <CheckCircle size={17} />
               <span>{exportSuccess}</span>
             </div>
           )}
         </div>
 
         {/* PIED DE MODALE — ACTIONS D'EXPORTATION MULTI-SUPPORTS */}
-        <div className="modal-footer" style={{ flexWrap: 'wrap' }}>
+        <div className="modal-footer" style={{ flexWrap: 'wrap', gap: '0.5rem' }}>
           
           <button type="button" className="btn-glass-secondary" onClick={handleBrowserPrint} title="Imprimer directement avec le navigateur">
-            <Printer size={16} />
+            <Printer size={15} />
             <span>Imprimer</span>
           </button>
 
@@ -591,7 +931,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
             disabled={isExporting !== null}
             title="Exporter en document Microsoft Word (.docx)"
           >
-            <FileText size={16} />
+            <FileText size={15} />
             <span>{isExporting === 'docx' ? 'Création DOCX...' : 'Word (.docx)'}</span>
           </button>
 
@@ -602,7 +942,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
             disabled={isExporting !== null}
             title="Télécharger le fichier PDF vectoriel de haute qualité"
           >
-            <FileDown size={16} />
+            <FileDown size={15} />
             <span>{isExporting === 'pdf' ? 'Création PDF...' : 'Télécharger PDF'}</span>
           </button>
 
@@ -612,9 +952,9 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
             className="btn-glass-black"
             onClick={handleExportPng}
             disabled={isExporting !== null}
-            title="Télécharger l'image PNG haute résolution adaptée en fond d'écran"
+            title="Télécharger l'image PNG haute résolution adaptée"
           >
-            <Sparkles size={16} />
+            <Sparkles size={15} />
             <span>
               {isExporting === 'png' 
                 ? 'Génération HD...' 

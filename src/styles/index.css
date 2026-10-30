@@ -1246,3 +1246,140 @@ body {
     padding: 0.4rem 0.55rem !important;
   }
 }
+
+/* ==========================================================================
+   Styles de Miniaturisation Extrême (Tables Seules & Micro-Composants)
+   ========================================================================== */
+.table-micro {
+  --table-cell-padding: 2px 3px !important;
+  --table-cell-min-height: 24px !important;
+  --table-cell-min-width: 50px !important;
+  --table-font-size: 0.65rem !important;
+}
+
+.table-ultra-compact {
+  --table-cell-padding: 3px 4px !important;
+  --table-cell-min-height: 32px !important;
+  --table-cell-min-width: 75px !important;
+  --table-font-size: 0.72rem !important;
+}
+
+.micro-btn {
+  padding: 0.2rem 0.45rem !important;
+  font-size: 0.7rem !important;
+  min-height: 24px !important;
+  border-radius: 6px !important;
+}
+
+/* ==========================================================================
+   Moteur d'Impression Haute Fidélité (@media print)
+   Garantit un fond 100% blanc pur, sans encre gaspillée, et sans artefacts UI
+   ========================================================================== */
+@media print {
+  /* Masquage de l'interface web globale */
+  body, html {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow: visible !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Cacher la navigation, sidebar, header, tiroirs et boutons */
+  .app-header,
+  .glass-sidebar,
+  .sidebar-overlay,
+  .editor-toolbar,
+  .mobile-options-drawer,
+  .modal-header,
+  .modal-footer,
+  .btn-glass-black,
+  .btn-glass-secondary,
+  .btn-ghost,
+  .properties-panel,
+  .mobile-scroll-hint,
+  .no-print {
+    display: none !important;
+  }
+
+  /* La modale se désencadre pour devenir une simple page blanche */
+  .modal-overlay {
+    position: static !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .modal-card {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-width: 100% !important;
+    width: 100% !important;
+    max-height: none !important;
+    overflow: visible !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .modal-body {
+    padding: 0 !important;
+    gap: 0 !important;
+  }
+
+  .print-preview-box {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+    min-height: auto !important;
+    overflow: visible !important;
+  }
+
+  /* Zone d'impression officielle */
+  .print-page-sheet {
+    background: #ffffff !important;
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 10mm 12mm !important;
+    margin: 0 auto !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    box-sizing: border-box !important;
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  /* Tables en impression : bordures nettes, fond blanc garanti */
+  .print-page-sheet table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    background: #ffffff !important;
+  }
+
+  .print-page-sheet th,
+  .print-page-sheet td {
+    border: 1px solid #64748b !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Gestion de l'orientation papier par CSS Paged Media */
+  @page {
+    margin: 8mm;
+    size: auto;
+  }
+}
