@@ -1,4 +1,4 @@
-import { Board, TemplateType, BoardAxis, BoardCell } from '../types';
+import { Board, TemplateType, BoardAxis, BoardCell, CourseEntry } from '../types';
 
 export interface TemplateDefinition {
   type: TemplateType;
@@ -13,27 +13,85 @@ const generateId = (): string => {
   return 'id_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36);
 };
 
+export const DEFAULT_INITIAL_COURSES = (boardId: string): CourseEntry[] => [
+  {
+    id: 'course_maths_' + boardId,
+    board_id: boardId,
+    dayIndex: 0, // Lundi
+    title: 'Mathématiques',
+    room: 'Amphi 1',
+    professor: 'M. Martin',
+    startTime: '08:00',
+    endTime: '10:00',
+    color: '#4A90E2',
+    notes: 'Chapitre 3 : Intégrales'
+  },
+  {
+    id: 'course_algo_' + boardId,
+    board_id: boardId,
+    dayIndex: 0, // Lundi
+    title: 'Algorithmique',
+    room: 'Salle 302',
+    startTime: '10:15',
+    endTime: '12:15',
+    color: '#50E3C2'
+  },
+  {
+    id: 'course_phys_' + boardId,
+    board_id: boardId,
+    dayIndex: 1, // Mardi
+    title: 'Physique',
+    room: 'Labo 4',
+    startTime: '09:00',
+    endTime: '11:00',
+    color: '#9B51E0'
+  },
+  {
+    id: 'course_anglais_' + boardId,
+    board_id: boardId,
+    dayIndex: 1, // Mardi
+    title: 'Anglais',
+    room: 'Salle 105',
+    startTime: '14:00',
+    endTime: '16:00',
+    color: '#F5A623'
+  },
+  {
+    id: 'course_reseaux_' + boardId,
+    board_id: boardId,
+    dayIndex: 4, // Vendredi
+    title: 'Réseaux & Sécurité',
+    room: 'Salle 210',
+    startTime: '10:00',
+    endTime: '12:00',
+    color: '#D0021B'
+  }
+];
+
 export const TEMPLATES_CATALOG: TemplateDefinition[] = [
   {
     type: 'timetable',
-    title: 'Emploi du temps',
-    badge: 'Classique & Universitaire',
-    description: 'Planning par plages horaires et jours de la semaine. Idéal pour cours, révisions et ateliers avec gestion des pauses.',
+    title: 'Emploi du temps Universitaire & Scolaire',
+    badge: 'Grille 08h - 19h',
+    description: 'Planning hebdomadaire par créneaux continus de 08:00 à 19:00 avec cartes de cours colorées et précision au quart d’heure.',
     iconName: 'Clock',
     createDefault: (ownerId: string): Board => {
       const boardId = generateId();
       const days = ['LUNDI', 'MARDI', 'MERCREDI', 'JEUDI', 'VENDREDI', 'SAMEDI'];
-      const slots = [
-        { label: '08H00 - 09H30', start: '08:00', end: '09:30' },
-        { label: '09H30 - 11H00', start: '09:30', end: '11:00' },
-        { label: '11H15 - 12H45', start: '11:15', end: '12:45' },
-        { label: '12H45 - 14H00', start: '12:45', end: '14:00' },
-        { label: '14H00 - 15H30', start: '14:00', end: '15:30' },
-        { label: '15H45 - 17H15', start: '15:45', end: '17:15' },
-        { label: '17H15 - 18H45', start: '17:15', end: '18:45' }
+      const hours = [
+        '08:00 - 09:00',
+        '09:00 - 10:00',
+        '10:00 - 11:00',
+        '11:00 - 12:00',
+        '12:00 - 13:00',
+        '13:00 - 14:00',
+        '14:00 - 15:00',
+        '15:00 - 16:00',
+        '16:00 - 17:00',
+        '17:00 - 18:00',
+        '18:00 - 19:00'
       ];
 
-      const axes: BoardAxis[] = [];
       const colAxes: BoardAxis[] = days.map((day, idx) => ({
         id: generateId(),
         board_id: boardId,
@@ -41,95 +99,37 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
         position: idx,
         label: day,
         kind: 'weekday',
-        size_px: 125
+        size_px: 130
       }));
-      axes.push(...colAxes);
 
-      const rowAxes: BoardAxis[] = slots.map((s, idx) => ({
-        id: generateId(),
-        board_id: boardId,
-        axis: 'row',
-        position: idx,
-        label: s.label,
-        kind: 'time_slot',
-        start_time: s.start,
-        end_time: s.end,
-        size_px: 55
-      }));
-      axes.push(...rowAxes);
+      const rowAxes: BoardAxis[] = hours.map((h, idx) => {
+        const start = (8 + idx).toString().padStart(2, '0') + ':00';
+        const end = (9 + idx).toString().padStart(2, '0') + ':00';
+        return {
+          id: generateId(),
+          board_id: boardId,
+          axis: 'row',
+          position: idx,
+          label: h,
+          kind: 'time_slot',
+          start_time: start,
+          end_time: end,
+          size_px: 64
+        };
+      });
 
       const cells: BoardCell[] = [];
-      
-      // Configuration claire, moderne et équilibrée
-      const getCellData = (rowIdx: number, colIdx: number) => {
-        // Pause Déjeuner (ligne 3 : 12H45 - 14H00)
-        if (rowIdx === 3) {
-          return { text: 'PAUSE DÉJEUNER', bg: '#f1f5f9', color: '#475569', bold: false };
-        }
-        
-        // Samedi après-midi libre
-        if (colIdx === 5 && rowIdx >= 4) {
-          return { text: '', bg: '#ffffff', color: '#64748b', bold: false };
-        }
-
-        // Cours types
-        const scheduleGrid: Record<string, { text: string; bg: string; color: string; bold: boolean }> = {
-          '0-0': { text: 'MATHÉMATIQUES\nAmphi A', bg: '#dbeafe', color: '#1e40af', bold: true },
-          '0-1': { text: 'FRANÇAIS\nSalle 102', bg: '#fce7f3', color: '#9d174d', bold: true },
-          '0-2': { text: 'PHYSIQUE-CHIMIE\nLabo B', bg: '#e0e7ff', color: '#3730a3', bold: true },
-          '0-3': { text: 'HISTOIRE-GÉO\nSalle 204', bg: '#ffedd5', color: '#9a3412', bold: true },
-          '0-4': { text: 'ANGLAIS LV1\nSalle 108', bg: '#dcfce7', color: '#166534', bold: true },
-          '0-5': { text: 'INFORMATIQUE\nSalle Machine', bg: '#cffafe', color: '#155e75', bold: true },
-
-          '1-0': { text: 'ALGORITHMIQUE\nAmphi B', bg: '#cffafe', color: '#155e75', bold: true },
-          '1-1': { text: 'MATHÉMATIQUES\nTD 3', bg: '#dbeafe', color: '#1e40af', bold: true },
-          '1-2': { text: 'ANGLAIS LV1\nLabo Langues', bg: '#dcfce7', color: '#166534', bold: true },
-          '1-3': { text: 'PHYSIQUE-CHIMIE\nAmphi A', bg: '#e0e7ff', color: '#3730a3', bold: true },
-          '1-4': { text: 'FRANÇAIS\nSalle 102', bg: '#fce7f3', color: '#9d174d', bold: true },
-          '1-5': { text: 'PROJET TUTORÉ\nAtelier', bg: '#fef3c7', color: '#92400e', bold: true },
-
-          '2-0': { text: 'DROIT & ÉTHIQUE\nSalle 205', bg: '#f3e8ff', color: '#6b21a8', bold: true },
-          '2-1': { text: 'SPORT / EPS\nGymnase', bg: '#fef3c7', color: '#92400e', bold: true },
-          '2-2': { text: 'HISTOIRE-GÉO\nSalle 204', bg: '#ffedd5', color: '#9a3412', bold: true },
-          '2-3': { text: 'MATHÉMATIQUES\nAmphi A', bg: '#dbeafe', color: '#1e40af', bold: true },
-          '2-4': { text: 'INFORMATIQUE\nSalle Machine', bg: '#cffafe', color: '#155e75', bold: true },
-          '2-5': { text: 'CONFÉRENCE\nAuditorium', bg: '#f1f5f9', color: '#334155', bold: true },
-
-          '4-0': { text: 'ÉCONOMIE\nSalle 110', bg: '#f3e8ff', color: '#6b21a8', bold: true },
-          '4-1': { text: 'PHYSIQUE TP\nLabo B', bg: '#e0e7ff', color: '#3730a3', bold: true },
-          '4-2': { text: 'ATELIER CODAGE\nSalle Mac', bg: '#cffafe', color: '#155e75', bold: true },
-          '4-3': { text: 'SPORT / EPS\nStade', bg: '#fef3c7', color: '#92400e', bold: true },
-          '4-4': { text: 'COMMUNICATION\nSalle 105', bg: '#dcfce7', color: '#166534', bold: true },
-
-          '5-0': { text: 'RÉVISIONS\nBibliothèque', bg: '#f1f5f9', color: '#475569', bold: true },
-          '5-1': { text: 'ANGLAIS LV2\nSalle 108', bg: '#dcfce7', color: '#166534', bold: true },
-          '5-2': { text: 'TUTORAT\nSalle B12', bg: '#fef3c7', color: '#92400e', bold: true },
-          '5-3': { text: 'MATHS SOUTIEN\nSalle 102', bg: '#dbeafe', color: '#1e40af', bold: true },
-          '5-4': { text: 'BILAN SEMAINE\nAmphi C', bg: '#fee2e2', color: '#991b1b', bold: true },
-
-          '6-0': { text: 'ÉVÉNEMENT\nBureau Étudiants', bg: '#fefce8', color: '#854d0e', bold: true },
-          '6-1': { text: 'SPORT LIBRE', bg: '#fef3c7', color: '#92400e', bold: true },
-          '6-2': { text: 'CONFÉRENCE PRO', bg: '#f3e8ff', color: '#6b21a8', bold: true },
-          '6-3': { text: 'PROJET PERSO', bg: '#ecfdf5', color: '#065f46', bold: true },
-          '6-4': { text: 'WEEK-END !', bg: '#dcfce7', color: '#166534', bold: true }
-        };
-
-        const key = `${rowIdx}-${colIdx}`;
-        return scheduleGrid[key] || { text: '', bg: '#ffffff', color: '#1f2937', bold: false };
-      };
-
       for (const r of rowAxes) {
         for (const c of colAxes) {
-          const item = getCellData(r.position, c.position);
           cells.push({
             id: generateId(),
             board_id: boardId,
             row_axis_id: r.id,
             column_axis_id: c.id,
-            content: item.text,
-            background_color: item.bg,
-            text_color: item.color,
-            text_style: { align: 'center', bold: item.bold }
+            content: '',
+            background_color: '#ffffff',
+            text_color: '#1f2937',
+            text_style: { align: 'center' }
           });
         }
       }
@@ -137,22 +137,23 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       return {
         id: boardId,
         owner_id: ownerId,
-        title: 'Emploi du temps Hebdomadaire',
+        title: 'Emploi du Temps Hebdomadaire',
         template_type: 'timetable',
         settings: {
           showGridLines: true,
           firstDayOfWeek: 1,
           slotDurationMinutes: 60,
-          themeColor: '#0284c7',
-          notes: 'Planning intensif Cyber & Ingénierie logicielle — Présence obligatoire.'
+          themeColor: '#6200ee',
+          notes: ''
         },
         timezone: 'Europe/Paris',
         week_starts_on: 1,
         version: 1,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
-        axes,
-        cells
+        axes: [...colAxes, ...rowAxes],
+        cells,
+        courses: DEFAULT_INITIAL_COURSES(boardId)
       };
     }
   },
@@ -160,7 +161,7 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
     type: 'monthly',
     title: 'Planificateur mensuel',
     badge: 'Vue d’ensemble',
-    description: 'Calendrier de 4 à 5 semaines pour jalonner vos échéances, livrables et événements du mois.',
+    description: 'Calendrier mensuel pour jalonner vos échéances, livrables et objectifs majeurs.',
     iconName: 'Calendar',
     createDefault: (ownerId: string): Board => {
       const boardId = generateId();
@@ -193,35 +194,16 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       for (const r of rowAxes) {
         for (const c of colAxes) {
           const currentDayNum = dayCounter <= 31 ? dayCounter : null;
-          let content = currentDayNum ? `${currentDayNum}\n` : '';
-          let bg = '#ffffff';
-          let textColor = '#1f2937';
-
-          if (currentDayNum === 5) {
-            content += '🎯 Lancement Sprint';
-            bg = '#e0f2fe';
-            textColor = '#0369a1';
-          } else if (currentDayNum === 15) {
-            content += '📝 Rapport d’étape';
-            bg = '#fef3c7';
-            textColor = '#92400e';
-          } else if (currentDayNum === 28) {
-            content += '🚀 Soutenance finale';
-            bg = '#dcfce7';
-            textColor = '#166534';
-          }
-
           cells.push({
             id: generateId(),
             board_id: boardId,
             row_axis_id: r.id,
             column_axis_id: c.id,
-            content: content.trim(),
-            background_color: bg,
-            text_color: textColor,
+            content: currentDayNum ? `${currentDayNum}` : '',
+            background_color: '#ffffff',
+            text_color: '#1f2937',
             text_style: { align: 'left' }
           });
-
           if (currentDayNum) dayCounter++;
         }
       }
@@ -229,13 +211,13 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       return {
         id: boardId,
         owner_id: ownerId,
-        title: 'Planification Mensuelle — Novembre',
+        title: 'Planification Mensuelle',
         template_type: 'monthly',
         settings: {
           showGridLines: true,
           firstDayOfWeek: 1,
           themeColor: '#8b5cf6',
-          notes: 'Objectif du mois : Clôturer la première phase et finaliser les spécifications.'
+          notes: ''
         },
         timezone: 'Europe/Paris',
         week_starts_on: 1,
@@ -257,10 +239,10 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       const boardId = generateId();
       const days = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Weekend'];
       const periods = [
-        '🎯 Priorités du jour',
-        '☀️ Matinée (Focus & Deep Work)',
-        '⛅ Après-midi (Réunions & Action)',
-        '🌙 Soirée & Bilan'
+        'Priorités du jour',
+        'Matinée (Focus & Projets)',
+        'Après-midi (Actions & Rendez-vous)',
+        'Soirée & Bilan'
       ];
 
       const colAxes: BoardAxis[] = days.map((day, idx) => ({
@@ -286,21 +268,13 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       const cells: BoardCell[] = [];
       for (const r of rowAxes) {
         for (const c of colAxes) {
-          let content = '';
-          let bg = '#ffffff';
-
-          if (r.position === 0) {
-            content = c.position < 5 ? `• Objectif N°${c.position + 1}` : '• Repos & Sport';
-            bg = '#f0fdf4';
-          }
-
           cells.push({
             id: generateId(),
             board_id: boardId,
             row_axis_id: r.id,
             column_axis_id: c.id,
-            content,
-            background_color: bg,
+            content: '',
+            background_color: '#ffffff',
             text_color: '#1f2937',
             text_style: { align: 'left' }
           });
@@ -310,13 +284,13 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       return {
         id: boardId,
         owner_id: ownerId,
-        title: 'Semainier — Productivité & Focus',
+        title: 'Semainier — Organisation & Objectifs',
         template_type: 'weekly',
         settings: {
           showGridLines: true,
           firstDayOfWeek: 1,
           themeColor: '#10b981',
-          notes: 'Règle d’or : Pas plus de 3 priorités majeures par journée.'
+          notes: ''
         },
         timezone: 'Europe/Paris',
         week_starts_on: 1,
@@ -338,10 +312,10 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       const boardId = generateId();
       const columns = ['Matinée (08h - 12h)', 'Après-midi (13h - 17h)', 'Fin de journée (17h - 20h)'];
       const rows = [
-        '1. Top Priorité (Must do)',
-        '2. Tâches secondaires',
-        '3. Appels & Rendez-vous',
-        '4. Suivi & Notes du jour'
+        'Top Priorités',
+        'Tâches secondaires',
+        'Rendez-vous',
+        'Notes du jour'
       ];
 
       const colAxes: BoardAxis[] = columns.map((col, idx) => ({
@@ -367,24 +341,13 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       const cells: BoardCell[] = [];
       for (const r of rowAxes) {
         for (const c of colAxes) {
-          let content = '';
-          let bg = '#ffffff';
-
-          if (r.position === 0 && c.position === 0) {
-            content = '✅ Valider l’architecture & base de données';
-            bg = '#fef2f2';
-          } else if (r.position === 1 && c.position === 1) {
-            content = '⚡ Révision de code avec l’équipe';
-            bg = '#fefce8';
-          }
-
           cells.push({
             id: generateId(),
             board_id: boardId,
             row_axis_id: r.id,
             column_axis_id: c.id,
-            content,
-            background_color: bg,
+            content: '',
+            background_color: '#ffffff',
             text_color: '#1f2937',
             text_style: { align: 'left' }
           });
@@ -394,12 +357,12 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
       return {
         id: boardId,
         owner_id: ownerId,
-        title: 'Planning Quotidien — Journée Type',
+        title: 'Planning Quotidien',
         template_type: 'daily',
         settings: {
           showGridLines: true,
           themeColor: '#f59e0b',
-          notes: 'Penser à boire 1.5L d’eau et s’accorder une pause toutes les 90 minutes.'
+          notes: ''
         },
         timezone: 'Europe/Paris',
         week_starts_on: 1,
@@ -466,7 +429,7 @@ export const TEMPLATES_CATALOG: TemplateDefinition[] = [
         settings: {
           showGridLines: true,
           themeColor: '#6366f1',
-          notes: 'Grille entièrement personnalisable.'
+          notes: ''
         },
         timezone: 'Europe/Paris',
         week_starts_on: 1,

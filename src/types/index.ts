@@ -57,6 +57,21 @@ export interface BoardCell {
   items?: CellItem[];
 }
 
+export interface CourseEntry {
+  id: string;
+  board_id: string;
+  dayIndex: number; // 0 = Lundi, 1 = Mardi, 2 = Mercredi, 3 = Jeudi, 4 = Vendredi, 5 = Samedi
+  title: string;
+  room?: string;
+  professor?: string;
+  startTime: string; // "08:00"
+  endTime: string;   // "10:00"
+  color: string;     // "#4A90E2"
+  notes?: string;
+}
+
+export type DensityLevel = 'normal' | 'compact' | 'ultra-compact' | 'micro';
+
 export interface BoardSettings {
   showGridLines?: boolean;
   firstDayOfWeek?: number; // 0 = Dimanche, 1 = Lundi
@@ -65,6 +80,9 @@ export interface BoardSettings {
   dayEndTime?: string;
   themeColor?: string;
   notes?: string;
+  density?: DensityLevel;
+  tableScaleOnly?: number;
+  folderWidth?: number;
 }
 
 export interface Board {
@@ -81,6 +99,7 @@ export interface Board {
   deleted_at?: string | null;
   axes: BoardAxis[];
   cells: BoardCell[];
+  courses?: CourseEntry[];
 }
 
 export interface BoardShare {

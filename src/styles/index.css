@@ -1383,3 +1383,124 @@ body {
     size: auto;
   }
 }
+
+
+/* ==========================================================================
+   MOTEUR D'ULTRA-DENSITÉ & RÉDUCTION MICRO-ÉCHELLE (4 NIVEAUX)
+   ========================================================================== */
+
+:root,
+[data-density='normal'] {
+  --app-density-scale: 1;
+  --app-btn-h: 40px;
+  --table-cell-py: 10px;
+  --table-cell-px: 12px;
+  --app-font-scale: 1;
+  --hour-h: 64px;
+  --card-font-title: 0.85rem;
+  --card-font-sub: 0.72rem;
+}
+
+[data-density='compact'] {
+  --app-density-scale: 0.88;
+  --app-btn-h: 32px;
+  --table-cell-py: 6px;
+  --table-cell-px: 10px;
+  --app-font-scale: 0.88;
+  --hour-h: 52px;
+  --card-font-title: 0.76rem;
+  --card-font-sub: 0.65rem;
+}
+
+[data-density='ultra-compact'] {
+  --app-density-scale: 0.75;
+  --app-btn-h: 26px;
+  --table-cell-py: 4px;
+  --table-cell-px: 6px;
+  --app-font-scale: 0.75;
+  --hour-h: 44px;
+  --card-font-title: 0.70rem;
+  --card-font-sub: 0.60rem;
+}
+
+[data-density='micro'] {
+  --app-density-scale: 0.65;
+  --app-btn-h: 22px;
+  --table-cell-py: 2px;
+  --table-cell-px: 4px;
+  --app-font-scale: 0.65;
+  --hour-h: 36px;
+  --card-font-title: 0.62rem;
+  --card-font-sub: 0.52rem;
+}
+
+/* ==========================================================================
+   ISOLATION HERMÉTIQUE DES DOCUMENTS D'IMPRESSION (FOND BLANC PUR #FFFFFF)
+   ========================================================================== */
+
+.doc-sheet-isolated {
+  background-color: #ffffff !important;
+  color: #111827 !important;
+  color-scheme: light !important;
+  border-radius: 4px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.doc-sheet-isolated * {
+  color-scheme: light !important;
+}
+
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .doc-sheet-isolated {
+    box-shadow: none !important;
+    border: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+  }
+}
+
+/* ==========================================================================
+   BOUTON FLOTTANT D'ACTION (FAB +) POUR COURS
+   ========================================================================== */
+
+.btn-fab-course {
+  position: fixed;
+  bottom: 1.5rem;
+  right: 1.5rem;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background-color: #6200ee;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6px 16px rgba(98, 0, 238, 0.4), 0 2px 4px rgba(0, 0, 0, 0.12);
+  cursor: pointer;
+  z-index: 40;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border: none;
+}
+
+.btn-fab-course:hover {
+  background-color: #5300d6;
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 10px 22px rgba(98, 0, 238, 0.5), 0 4px 6px rgba(0, 0, 0, 0.15);
+}
+
+.btn-fab-course:active {
+  transform: translateY(1px) scale(0.96);
+}
+
+/* Défilement tactile sans à-coups sur iOS */
+.touch-scroll-container {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x pan-y;
+  padding-bottom: env(safe-area-inset-bottom, 1rem);
+}

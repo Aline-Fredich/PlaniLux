@@ -1,7 +1,7 @@
-import { Moon, Sun, User, CheckCircle2, CloudOff, RefreshCw, AlertCircle, Menu, LogOut, Download } from 'lucide-react';
+import { Moon, Sun, User, CheckCircle2, CloudOff, RefreshCw, AlertCircle, Menu, LogOut, Download, SlidersHorizontal } from 'lucide-react';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
 import { SaveStatus } from '../services/storageService';
-import { UserAccount } from '../types';
+import { UserAccount, DensityLevel } from '../types';
 import { usePWAInstall } from '../hooks/usePWAInstall';
 
 interface HeaderProps {
@@ -14,6 +14,8 @@ interface HeaderProps {
   onToggleTheme: () => void;
   currentUser?: UserAccount | null;
   onLogout?: () => void;
+  density?: DensityLevel;
+  onDensityChange?: (d: DensityLevel) => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,9 +27,18 @@ export const Header: React.FC<HeaderProps> = ({
   theme,
   onToggleTheme,
   currentUser,
-  onLogout
+  onLogout,
+  density = 'normal',
+  onDensityChange
 }) => {
   const { isInstalled, installApp } = usePWAInstall();
+
+  const densityOptions: { level: DensityLevel; label: string; icon: string }[] = [
+    { level: 'normal', label: '100%', icon: '🖥' },
+    { level: 'compact', label: '88%', icon: '📐' },
+    { level: 'ultra-compact', label: '75%', icon: '⚡' },
+    { level: 'micro', label: '65%', icon: '🔬' }
+  ];
 
   return (
     <header className="app-header">
@@ -104,6 +115,32 @@ export const Header: React.FC<HeaderProps> = ({
             </>
           )}
         </div>
+
+        {/* Sélecteur Moteur d'Ultra-Densité (4 paliers) */}
+        {onDensityChange && (
+          <div className="hidden sm:flex items-center bg-[var(--bg-tertiary)] rounded-[var(--radius-md)] p-0.5 border border-[var(--glass-border-subtle)]" title="Niveau de densité & micro-échelle">
+            {densityOptions.map(opt => (
+              <button
+                key={opt.level}
+                type="button"
+                onClick={() => onDensityChange(opt.level)}
+                style={{
+                  padding: '0.2rem 0.45rem',
+                  fontSize: '0.68rem',
+                  fontWeight: 600,
+                  borderRadius: '6px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  background: density === opt.level ? 'var(--primary)' : 'transparent',
+                  color: density === opt.level ? '#ffffff' : 'var(--text-secondary)'
+                }}
+                title={`Densité ${opt.level} (${opt.label})`}
+              >
+                <span>{opt.icon}</span> <span className="hidden md:inline">{opt.label}</span>
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* Bascule Dark / Light */}
         <button

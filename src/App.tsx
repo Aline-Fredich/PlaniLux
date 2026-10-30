@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Board, TemplateType, UserAccount } from './types';
+import { Board, TemplateType, UserAccount, DensityLevel } from './types';
 import {
   saveBoard,
   duplicateBoard,
@@ -31,6 +31,9 @@ export const App: React.FC = () => {
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     return (localStorage.getItem('planilux_theme') as 'light' | 'dark') || 'light';
   });
+  const [density, setDensity] = useState<DensityLevel>(() => {
+    return (localStorage.getItem('planilux_density') as DensityLevel) || 'normal';
+  });
 
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -46,6 +49,12 @@ export const App: React.FC = () => {
     document.documentElement.setAttribute('data-theme', theme);
     localStorage.setItem('planilux_theme', theme);
   }, [theme]);
+
+  // Appliquer la densité globale sur l'élément racine
+  useEffect(() => {
+    document.documentElement.setAttribute('data-density', density);
+    localStorage.setItem('planilux_density', density);
+  }, [density]);
 
   // Chargement des tableaux cloisonnés pour l'utilisateur connecté directement depuis Supabase
   const refreshBoards = async (userId?: string) => {
@@ -253,6 +262,8 @@ export const App: React.FC = () => {
           onToggleTheme={toggleTheme}
           currentUser={currentUser}
           onLogout={handleLogout}
+          density={density}
+          onDensityChange={setDensity}
         />
 
         <main style={{ flex: 1 }}>

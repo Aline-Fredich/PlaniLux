@@ -44,7 +44,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
     wallpaperTheme: 'light',
     // Nouveaux réglages de personnalisation intégrale
     customTitle: board.title,
-    customSubtitle: 'Année 2026-2027 • Emploi du Temps Officiel',
+    customSubtitle: board.settings?.notes || '',
     fontFamily: 'sans',
     fontSizeScale: 100,
     headerBgColor: '#f1f5f9',
@@ -798,7 +798,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
           <div className="print-preview-box" style={{ background: isWallpaperMode && !settings.forcePureWhiteBg ? 'rgba(0, 0, 0, 0.4)' : '#e2e8f0' }}>
             <div
               ref={previewRef}
-              className={`print-page-sheet ${isPhoneWallpaper && !settings.forcePureWhiteBg ? 'wallpaper-phone-frame' : isDesktopWallpaper && !settings.forcePureWhiteBg ? 'wallpaper-desktop-frame' : ''}`}
+              className={`print-page-sheet doc-sheet-isolated ${isPhoneWallpaper && !settings.forcePureWhiteBg ? 'wallpaper-phone-frame' : isDesktopWallpaper && !settings.forcePureWhiteBg ? 'wallpaper-desktop-frame' : ''}`}
               style={{
                 aspectRatio: isPhoneWallpaper ? '9 / 16' : isDesktopWallpaper ? '16 / 9' : settings.orientation === 'landscape' ? '1.414' : '0.707',
                 background: wpStyle.background,
@@ -863,8 +863,19 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                             {r.label}
                           </td>
                         )}
-                        {colAxes.map(c => {
+                        {colAxes.map((c, colIdx) => {
                           const cell = board.cells.find(cell => cell.row_axis_id === r.id && cell.column_axis_id === c.id);
+                          const slotStart = r.start_time || '08:00';
+                          const slotEnd = r.end_time || '09:00';
+                          const matchingCourses = (board.courses || []).filter(crs => {
+                            if (crs.dayIndex !== colIdx) return false;
+                            return (crs.startTime <= slotStart && crs.endTime > slotStart) ||
+                                   (crs.startTime >= slotStart && crs.startTime < slotEnd);
+                          });
+
+                          const hasCourses = matchingCourses.length > 0;
+                          const primaryCourse = matchingCourses[0];
+
                           const cellBg = settings.printColors && cell?.background_color && cell.background_color !== '#ffffff' 
                             ? cell.background_color 
                             : isWallpaperMode && !settings.forcePureWhiteBg ? 'transparent' : '#ffffff';
@@ -888,7 +899,35 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                                 wordBreak: 'break-word'
                               }}
                             >
-                              {cell?.content ? cell.content : ''}
+                              {hasCourses ? (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', padding: '1px' }}>
+                                  {matchingCourses.map(mc => (
+                                    <div 
+                                      key={mc.id} 
+                                      style={{ 
+                                        borderRadius: '4px', 
+                                        padding: '3px 5px', 
+                                        background: settings.printColors ? mc.color : '#f1f5f9', 
+                                        color: settings.printColors ? '#ffffff' : '#0f172a', 
+                                        boxShadow: '0 1px 3px rgba(0,0,0,0.12)',
+                                        textAlign: 'left'
+                                      }}
+                                    >
+                                      <div style={{ fontWeight: 700, fontSize: cellFontSize }}>{mc.title}</div>
+                                      {(mc.room || mc.professor) && (
+                                        <div style={{ fontSize: `calc(${cellFontSize} * 0.85)`, opacity: 0.9 }}>
+                                          {[mc.room, mc.professor].filter(Boolean).join(' • ')}
+                                        </div>
+                                      )}
+                                      <div style={{ fontSize: `calc(${cellFontSize} * 0.8)`, opacity: 0.85 }}>
+                                        {mc.startTime} - {mc.endTime}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              ) : (
+                                cell?.content ? cell.content : ''
+                              )}
                             </td>
                           );
                         })}

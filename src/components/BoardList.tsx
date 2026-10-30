@@ -28,6 +28,10 @@ export const BoardList: React.FC<BoardListProps> = ({
 }) => {
   const [searchQuery, setSearchQuery] = useState('');
   const [viewMode, setViewMode] = useState<'glass' | 'grid'>('glass');
+  const [folderWidth, setFolderWidth] = useState<number>(() => {
+    const saved = localStorage.getItem('planilux_folder_width');
+    return saved ? Number(saved) : 230;
+  });
 
   const showTrash = selectedCategory === 'trash';
 
@@ -247,6 +251,41 @@ export const BoardList: React.FC<BoardListProps> = ({
                 </button>
               </div>
             )}
+
+            {/* Sélecteur de taille des classeurs */}
+            {!showTrash && viewMode === 'glass' && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginLeft: '0.5rem' }}>
+                <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }} className="hidden sm:inline">Taille :</span>
+                <div style={{ display: 'flex', background: 'var(--bg-tertiary)', borderRadius: 'var(--radius-md)', padding: '2px', border: '1px solid var(--glass-border-subtle)' }}>
+                  {[
+                    { label: 'Compact', w: 180 },
+                    { label: 'Normal', w: 230 },
+                    { label: 'Grand', w: 280 }
+                  ].map(sizeOpt => (
+                    <button
+                      key={sizeOpt.label}
+                      type="button"
+                      onClick={() => {
+                        setFolderWidth(sizeOpt.w);
+                        localStorage.setItem('planilux_folder_width', String(sizeOpt.w));
+                      }}
+                      style={{
+                        padding: '0.2rem 0.5rem',
+                        fontSize: '0.7rem',
+                        fontWeight: 550,
+                        borderRadius: '6px',
+                        border: 'none',
+                        cursor: 'pointer',
+                        background: folderWidth === sizeOpt.w ? 'var(--primary)' : 'transparent',
+                        color: folderWidth === sizeOpt.w ? '#ffffff' : 'var(--text-secondary)'
+                      }}
+                    >
+                      {sizeOpt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -270,6 +309,7 @@ export const BoardList: React.FC<BoardListProps> = ({
                 label="Emplois du temps"
                 art="aurora"
                 seed={3}
+                width={folderWidth}
                 action="add"
                 onAdd={() => onCreateFromTemplate('timetable')}
                 files={timetableFolder.files}
@@ -285,6 +325,7 @@ export const BoardList: React.FC<BoardListProps> = ({
                 tone="dark"
                 art="ember"
                 seed={11}
+                width={folderWidth}
                 action="add"
                 labelPlacement="top-right"
                 onAdd={() => onCreateFromTemplate('weekly')}
@@ -300,6 +341,7 @@ export const BoardList: React.FC<BoardListProps> = ({
                 label="Tableaux Libres"
                 art="verdant"
                 seed={7}
+                width={folderWidth}
                 action="more"
                 labelPlacement="top-left"
                 files={freeFolder.files}

@@ -521,14 +521,10 @@ const FRONT_PATH =
 
 const MAX_VISIBLE = 4
 
-const SAMPLE_FILES: FolderFile[] = [
-  { name: "Cover — final", meta: "PNG · 4.8 MB", art: "ember" },
-  { name: "Moodboard", meta: "24 images", art: "dusk" },
-  { name: "Brief.pdf", meta: "PDF · 1.2 MB" },
-]
+const SAMPLE_FILES: FolderFile[] = []
 
 export default function GlassFolder({
-  label = "My Files",
+  label = "Mes Plannings",
   meta,
   tone = "light",
   art = "aurora",
@@ -544,7 +540,7 @@ export default function GlassFolder({
   defaultOpen = false,
   onOpenChange,
   onFileSelect,
-  width = 340,
+  width = 230,
   appear = true,
   appearDelay = 0,
   className,

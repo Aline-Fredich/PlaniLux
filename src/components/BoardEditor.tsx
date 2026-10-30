@@ -19,12 +19,14 @@ import {
   Plus,
   Minimize2,
   Wand2,
-  Sparkles
+  Sparkles,
+  Clock
 } from 'lucide-react';
-import { Board, BoardCell, BoardAxis } from '../types';
+import { Board, BoardCell, BoardAxis, CourseEntry, DensityLevel } from '../types';
 import { CellPropertiesPanel } from './CellPropertiesPanel';
 import { ShareModal } from './ShareModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
+import { CourseModal } from './CourseModal';
 
 interface BoardEditorProps {
   board: Board;
@@ -39,13 +41,20 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
+  const [editingCourse, setEditingCourse] = useState<Partial<CourseEntry> | null>(null);
+  const [timetableDisplayMode, setTimetableDisplayMode] = useState<'proportional' | 'matrix'>(
+    board.template_type === 'timetable' ? 'proportional' : 'matrix'
+  );
   const [editingAxisId, setEditingAxisId] = useState<string | null>(null);
   const [axisLabelInput, setAxisLabelInput] = useState('');
   
   // États de présentation & réduction extrême
   const [zoom, setZoom] = useState<number>(100);
-  const [tableScaleOnly, setTableScaleOnly] = useState<number>(100);
-  const [density, setDensity] = useState<DensityMode>('normal');
+  const [tableScaleOnly, setTableScaleOnly] = useState<number>(board.settings?.tableScaleOnly || 100);
+  const [density, setDensity] = useState<DensityMode>(
+    (board.settings?.density as DensityMode) || (localStorage.getItem('planilux_density') as DensityMode) || 'normal'
+  );
   const [isMicroUI, setIsMicroUI] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
@@ -100,6 +109,43 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
       return cell;
     });
     onUpdateBoard({ ...board, cells: updatedCells });
+  };
+
+  // Gestion des cours du planning proportionnel (08h00 - 19h00)
+  const handleSaveCourse = (savedCourse: CourseEntry) => {
+    const existingIdx = (board.courses || []).findIndex(c => c.id === savedCourse.id);
+    let nextCourses: CourseEntry[];
+    if (existingIdx >= 0) {
+      nextCourses = [...(board.courses || [])];
+      nextCourses[existingIdx] = savedCourse;
+    } else {
+      nextCourses = [...(board.courses || []), savedCourse];
+    }
+    onUpdateBoard({
+      ...board,
+      courses: nextCourses
+    });
+  };
+
+  const handleDeleteCourse = (courseId: string) => {
+    const nextCourses = (board.courses || []).filter(c => c.id !== courseId);
+    onUpdateBoard({
+      ...board,
+      courses: nextCourses
+    });
+  };
+
+  const handleOpenCreateCourse = (dayIndex = 0, defaultTime = '08:00') => {
+    const [h, m] = defaultTime.split(':').map(Number);
+    const endH = Math.min(19, (h || 8) + 2).toString().padStart(2, '0');
+    const mm = (m || 0).toString().padStart(2, '0');
+    setEditingCourse({
+      dayIndex,
+      startTime: defaultTime,
+      endTime: `${endH}:${mm}`,
+      color: '#4A90E2'
+    });
+    setIsCourseModalOpen(true);
   };
 
   // Ajouter une colonne (ex: jour supplémentaire)
@@ -345,6 +391,27 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
 
   const dStyle = getDensitySettings();
 
+  // Configuration pour la Grille Continue (08h00 - 19h00)
+  const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18]; // 11 heures (08:00 à 19:00)
+
+  const timeToMin = (t?: string): number => {
+    if (!t) return 480;
+    const [h, m] = t.split(':').map(Number);
+    return (h || 8) * 60 + (m || 0);
+  };
+
+  const getCourseTopAndHeight = (start: string, end: string, totalH: number) => {
+    const sMin = Math.max(480, Math.min(1140, timeToMin(start)));
+    const eMin = Math.max(sMin + 15, Math.min(1140, timeToMin(end)));
+    const top = ((sMin - 480) / 660) * totalH;
+    const height = Math.max(34, ((eMin - sMin) / 660) * totalH);
+    return { top, height };
+  };
+
+  const baseHourHeight = density === 'micro' ? 38 : density === 'ultra-compact' ? 46 : density === 'compact' ? 52 : 64;
+  const hourHeight = Math.round(baseHourHeight * (tableScaleOnly / 100));
+  const totalHeight = 11 * hourHeight;
+
   return (
     <div className={`editor-container ${isMicroUI ? 'micro-ui-mode' : ''}`}>
       
@@ -407,48 +474,82 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             </button>
           </div>
 
-          {/* Densitométrie (avec Micro-densité) */}
+          {/* Moteur d'Ultra-Densité 4 paliers */}
           <div className="toolbar-pill-group">
             <button
               type="button"
               className={`btn-glass-pill ${density === 'micro' ? 'active' : ''}`}
-              onClick={() => setDensity('micro')}
-              title="Densité Micro (Ultra-compacte)"
+              onClick={() => {
+                setDensity('micro');
+                document.documentElement.setAttribute('data-density', 'micro');
+              }}
+              title="Densité Micro (65%)"
             >
-              Micro
+              🔬 Micro
+            </button>
+            <button
+              type="button"
+              className={`btn-glass-pill ${density === 'ultra-compact' ? 'active' : ''}`}
+              onClick={() => {
+                setDensity('ultra-compact');
+                document.documentElement.setAttribute('data-density', 'ultra-compact');
+              }}
+              title="Densité Ultra-Compact (75%)"
+            >
+              ⚡ Ultra
             </button>
             <button
               type="button"
               className={`btn-glass-pill ${density === 'compact' ? 'active' : ''}`}
-              onClick={() => setDensity('compact')}
-              title="Affichage compact"
+              onClick={() => {
+                setDensity('compact');
+                document.documentElement.setAttribute('data-density', 'compact');
+              }}
+              title="Densité Compact (88%)"
             >
-              Compact
+              📐 Compact
             </button>
             <button
               type="button"
               className={`btn-glass-pill ${density === 'normal' ? 'active' : ''}`}
-              onClick={() => setDensity('normal')}
-              title="Affichage standard"
+              onClick={() => {
+                setDensity('normal');
+                document.documentElement.setAttribute('data-density', 'normal');
+              }}
+              title="Densité Standard (100%)"
             >
-              Standard
-            </button>
-            <button
-              type="button"
-              className={`btn-glass-pill ${density === 'relaxed' ? 'active' : ''}`}
-              onClick={() => setDensity('relaxed')}
-              title="Affichage aéré"
-            >
-              Aéré
+              🖥 Normal
             </button>
           </div>
 
-          {/* Toggle Table Seule Réduite */}
+          {/* Bascule Vue Grille Horaire vs Matrice (pour emplois du temps) */}
+          <div className="toolbar-pill-group hidden md:flex" style={{ background: 'rgba(98, 0, 238, 0.08)', border: '1px solid rgba(98, 0, 238, 0.25)' }}>
+            <button
+              type="button"
+              className={`btn-glass-pill ${timetableDisplayMode === 'proportional' ? 'active' : ''}`}
+              onClick={() => setTimetableDisplayMode('proportional')}
+              title="Vue grille horaire continue (08h00 - 19h00 avec cartes de cours)"
+            >
+              <Clock size={12} style={{ display: 'inline', marginRight: '3px' }} />
+              <span>Grille 08h-19h</span>
+            </button>
+            <button
+              type="button"
+              className={`btn-glass-pill ${timetableDisplayMode === 'matrix' ? 'active' : ''}`}
+              onClick={() => setTimetableDisplayMode('matrix')}
+              title="Vue matrice de cases tabulaires classique"
+            >
+              <LayoutGrid size={12} style={{ display: 'inline', marginRight: '3px' }} />
+              <span>Matrice</span>
+            </button>
+          </div>
+
+          {/* Toggle Découplage Réduction Table Seule */}
           <button
             type="button"
             className={`btn-glass-pill ${tableScaleOnly < 100 ? 'active' : ''}`}
-            onClick={() => setTableScaleOnly(s => (s === 100 ? 70 : 100))}
-            title="Réduire la table seulement (70% vs 100%)"
+            onClick={() => setTableScaleOnly(s => (s === 100 ? 75 : 100))}
+            title="Réduire la taille des tables sans rétrécir l'écriture"
             style={{ display: 'flex', alignItems: 'center', gap: '3px' }}
           >
             <Minimize2 size={12} />
@@ -824,9 +925,195 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             </div>
 
           </div>
+        ) : timetableDisplayMode === 'proportional' ? (
+          /* =====================================================================
+             B1. MODE GRILLE HORAIRE PROPORTIONNELLE CONTINUE (08H00 - 19H00)
+             ===================================================================== */
+          <div className="grid-viewport touch-scroll-container">
+            <div 
+              className="planner-table-container"
+              style={{
+                transform: zoom !== 100 ? `scale(${zoom / 100})` : undefined,
+                transformOrigin: 'top center',
+                transition: 'transform 0.15s ease'
+              }}
+            >
+              <div 
+                className="rounded-2xl border border-[var(--glass-border)] bg-[var(--bg-glass-card)] overflow-hidden shadow-lg backdrop-blur-md"
+                style={{ minWidth: `${Math.max(760, colAxes.length * 150 + 80)}px` }}
+              >
+                {/* En-tête des jours */}
+                <div 
+                  className="flex border-b border-[var(--glass-border)] bg-[var(--bg-tertiary)]"
+                  style={{ height: '48px' }}
+                >
+                  <div 
+                    className="w-[80px] flex-shrink-0 flex items-center justify-center border-r border-[var(--glass-border-subtle)] font-bold text-xs text-[var(--text-secondary)] uppercase tracking-wider"
+                  >
+                    HORAIRE
+                  </div>
+
+                  {colAxes.map((col, idx) => {
+                    const dayCoursesCount = (board.courses || []).filter(c => c.dayIndex === idx).length;
+                    return (
+                      <div 
+                        key={col.id} 
+                        className="flex-1 flex items-center justify-between px-3 border-r border-[var(--glass-border-subtle)] last:border-r-0"
+                      >
+                        <div className="flex items-center gap-1.5">
+                          <span className="font-bold text-sm text-[var(--text-primary)]">
+                            {col.label}
+                          </span>
+                          {dayCoursesCount > 0 && (
+                            <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full bg-[var(--primary-light)] text-[var(--primary)]">
+                              {dayCoursesCount}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenCreateCourse(idx, '08:00')}
+                          className="btn-ghost btn-icon p-1 text-[var(--primary)] opacity-70 hover:opacity-100"
+                          title={`Ajouter un cours le ${col.label}`}
+                        >
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Corps de la grille avec timeline de 08:00 à 19:00 */}
+                <div className="flex relative" style={{ height: `${totalHeight}px` }}>
+                  {/* Axe horaire à gauche */}
+                  <div 
+                    className="w-[80px] flex-shrink-0 border-r border-[var(--glass-border-subtle)] bg-[var(--bg-secondary)] relative select-none"
+                    style={{ height: `${totalHeight}px` }}
+                  >
+                    {HOURS.map((h, i) => (
+                      <div
+                        key={h}
+                        className="absolute w-full border-b border-[var(--border-light)] flex items-start justify-center pt-1"
+                        style={{
+                          top: `${i * hourHeight}px`,
+                          height: `${hourHeight}px`
+                        }}
+                      >
+                        <span className="text-[11px] font-bold text-[var(--text-secondary)]">
+                          {h.toString().padStart(2, '0')}:00
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Colonnes des jours avec créneaux et cartes */}
+                  {colAxes.map((col, dayIdx) => {
+                    const dayCourses = (board.courses || []).filter(c => c.dayIndex === dayIdx);
+
+                    return (
+                      <div
+                        key={col.id}
+                        className="flex-1 relative border-r border-[var(--glass-border-subtle)] last:border-r-0"
+                        style={{ height: `${totalHeight}px` }}
+                      >
+                        {/* Lignes horaires en arrière-plan (cliquables pour ajouter un cours) */}
+                        {HOURS.map((h, i) => {
+                          const timeStr = `${h.toString().padStart(2, '0')}:00`;
+                          return (
+                            <div
+                              key={h}
+                              onClick={() => handleOpenCreateCourse(dayIdx, timeStr)}
+                              title={`Cliquer pour ajouter un cours à ${timeStr} le ${col.label}`}
+                              className="absolute w-full border-b border-[var(--glass-border-subtle)]/60 hover:bg-[var(--primary-light)]/20 cursor-pointer transition-colors group flex items-start justify-end pr-2 pt-1"
+                              style={{
+                                top: `${i * hourHeight}px`,
+                                height: `${hourHeight}px`
+                              }}
+                            >
+                              <span className="text-[10px] text-[var(--text-muted)] opacity-0 group-hover:opacity-75 transition-opacity font-mono">
+                                + {timeStr}
+                              </span>
+                            </div>
+                          );
+                        })}
+
+                        {/* Cartes de cours proportionnelles */}
+                        {dayCourses.map((course) => {
+                          const { top, height } = getCourseTopAndHeight(course.startTime, course.endTime, totalHeight);
+
+                          return (
+                            <div
+                              key={course.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingCourse(course);
+                                setIsCourseModalOpen(true);
+                              }}
+                              className="absolute left-1.5 right-1.5 rounded-[8px] p-2.5 shadow-md cursor-pointer transition-all duration-150 hover:scale-[1.02] hover:shadow-lg active:scale-95 flex flex-col justify-between overflow-hidden group"
+                              style={{
+                                top: `${top}px`,
+                                height: `${height}px`,
+                                backgroundColor: course.color,
+                                color: '#ffffff',
+                                zIndex: 15,
+                                border: '1px solid rgba(255, 255, 255, 0.3)',
+                                boxShadow: '0 3px 10px rgba(0, 0, 0, 0.18)'
+                              }}
+                              title={`${course.title} (${course.startTime} - ${course.endTime})\nCliquer pour modifier`}
+                            >
+                              <div>
+                                <div className="font-extrabold text-xs sm:text-sm leading-snug drop-shadow-sm truncate">
+                                  {course.title}
+                                </div>
+                                {course.professor && (
+                                  <div className="text-[11px] font-medium opacity-90 truncate mt-0.5">
+                                    👨‍🏫 {course.professor}
+                                  </div>
+                                )}
+                              </div>
+
+                              <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-semibold opacity-95 pt-1 mt-1 border-t border-white/20">
+                                <span className="truncate max-w-[60%]">
+                                  📍 {course.room || 'Salle non déf.'}
+                                </span>
+                                <span className="font-mono flex-shrink-0">
+                                  {course.startTime} - {course.endTime}
+                                </span>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Bloc de notes au bas du tableau */}
+            <div className="board-notes-card mt-4">
+              <div className="flex items-center gap-1.5 mb-1.5">
+                <FileText size={14} color="var(--primary)" />
+                <label 
+                  htmlFor="board-notes-input" 
+                  className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider"
+                >
+                  Notes & consignes du planning :
+                </label>
+              </div>
+              <textarea
+                id="board-notes-input"
+                value={board.settings.notes || ''}
+                onChange={(e) => handleNotesChange(e.target.value)}
+                rows={2}
+                placeholder="Ex : Salle de secours, dates des examens..."
+                className="board-notes-textarea"
+              />
+            </div>
+          </div>
         ) : (
           /* =====================================================================
-             B. MODE VUE SEMAINE COMPLÈTE (GRILLE CLASSIQUE AVEC SUPER-ZOOM)
+             B2. MODE VUE MATRICE CLASSIQUE
              ===================================================================== */
           <div className="grid-viewport">
             
@@ -1121,6 +1408,30 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
       {isPrintModalOpen && (
         <PrintPreviewModal board={board} onClose={() => setIsPrintModalOpen(false)} />
       )}
+
+      {/* Bouton d'Action Flottant (FAB +) Squircle violet #6200ee */}
+      <button
+        type="button"
+        onClick={() => handleOpenCreateCourse(0, '08:00')}
+        className="btn-fab-course"
+        title="Ajouter un nouveau cours (+)"
+        aria-label="Ajouter un cours"
+      >
+        <Plus size={26} strokeWidth={2.5} />
+      </button>
+
+      {/* Modale de cours haute fidélité */}
+      <CourseModal
+        isOpen={isCourseModalOpen}
+        onClose={() => {
+          setIsCourseModalOpen(false);
+          setEditingCourse(null);
+        }}
+        onSave={handleSaveCourse}
+        onDelete={handleDeleteCourse}
+        initialCourse={editingCourse}
+        boardId={board.id}
+      />
     </div>
   );
 };
