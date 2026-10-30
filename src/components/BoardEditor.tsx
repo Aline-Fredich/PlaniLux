@@ -22,7 +22,7 @@ import {
   Sparkles,
   Clock
 } from 'lucide-react';
-import { Board, BoardCell, BoardAxis, CourseEntry, DensityLevel } from '../types';
+import { Board, BoardCell, BoardAxis, CourseEntry } from '../types';
 import { CellPropertiesPanel } from './CellPropertiesPanel';
 import { ShareModal } from './ShareModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
@@ -34,7 +34,7 @@ interface BoardEditorProps {
   onBack: () => void;
 }
 
-export type DensityMode = 'micro' | 'compact' | 'normal' | 'relaxed';
+export type DensityMode = 'micro' | 'ultra-compact' | 'compact' | 'normal' | 'relaxed';
 export type MobileEditorView = 'week' | 'day';
 
 export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, onBack }) => {
@@ -357,6 +357,15 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
           fontSize: `${Math.max(0.55, 0.65 * tableRatio)}rem`,
           headerPadding: '3px 2px',
           headerMinWidth: `${Math.round(65 * tableRatio)}px`
+        };
+      case 'ultra-compact':
+        return {
+          cellPadding: '3px 4px',
+          cellMinHeight: `${Math.round(34 * tableRatio)}px`,
+          cellMinWidth: `${Math.round(75 * tableRatio)}px`,
+          fontSize: `${Math.max(0.60, 0.70 * tableRatio)}rem`,
+          headerPadding: '3px 3px',
+          headerMinWidth: `${Math.round(80 * tableRatio)}px`
         };
       case 'compact':
         return {

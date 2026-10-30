@@ -1,4 +1,4 @@
-import { Moon, Sun, User, CheckCircle2, CloudOff, RefreshCw, AlertCircle, Menu, LogOut, Download, SlidersHorizontal } from 'lucide-react';
+import { Moon, Sun, User, CheckCircle2, CloudOff, RefreshCw, AlertCircle, Menu, LogOut, Download } from 'lucide-react';
 import { PlaniluxLogo } from './ui/PlaniluxLogo';
 import { SaveStatus } from '../services/storageService';
 import { UserAccount, DensityLevel } from '../types';

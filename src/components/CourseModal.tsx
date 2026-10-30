@@ -65,7 +65,6 @@ export const CourseModal: React.FC<CourseModalProps> = ({
   const [color, setColor] = useState('#4A90E2');
   const [notes, setNotes] = useState('');
   const [error, setError] = useState<string | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
 
   const isEditMode = !!initialCourse?.id;
 
@@ -80,7 +79,6 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       setColor(initialCourse?.color || '#4A90E2');
       setNotes(initialCourse?.notes || '');
       setError(null);
-      setIsDeleting(false);
     }
   }, [isOpen, initialCourse]);
 

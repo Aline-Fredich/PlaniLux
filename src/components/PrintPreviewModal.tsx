@@ -874,7 +874,6 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({ board, onC
                           });
 
                           const hasCourses = matchingCourses.length > 0;
-                          const primaryCourse = matchingCourses[0];
 
                           const cellBg = settings.printColors && cell?.background_color && cell.background_color !== '#ffffff' 
                             ? cell.background_color 
