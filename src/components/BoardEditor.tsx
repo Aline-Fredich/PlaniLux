@@ -593,25 +593,25 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             </button>
           </div>
 
-          {/* Boutons d'ajout de structure */}
+          {/* Boutons d'ajout de structure (visibles à partir de sm) */}
           <button 
             type="button"
-            className="btn-glass-secondary btn-compact-mobile" 
+            className="btn-glass-secondary hidden sm:inline-flex" 
             onClick={handleAddColumn} 
             title="Ajouter un jour / colonne"
           >
             <Columns size={14} />
-            <span className="hidden sm:inline">+ Jour</span>
+            <span className="hidden md:inline">+ Jour</span>
           </button>
 
           <button 
             type="button"
-            className="btn-glass-secondary btn-compact-mobile" 
+            className="btn-glass-secondary hidden sm:inline-flex" 
             onClick={handleAddRow} 
             title="Ajouter une plage horaire"
           >
             <Rows size={14} />
-            <span className="hidden sm:inline">+ Heure</span>
+            <span className="hidden md:inline">+ Heure</span>
           </button>
 
           {/* Assistant Mobile rapide */}
@@ -775,8 +775,34 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             />
           </div>
 
+          {/* Actions d'ajout de structure sur mobile */}
+          <div className="pt-2 border-t border-[var(--glass-border-subtle)] flex gap-2 mb-2">
+            <button
+              type="button"
+              className="btn-glass-secondary flex-1 text-xs py-1.5 flex items-center justify-center gap-1.5"
+              onClick={() => {
+                handleAddColumn();
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <Columns size={13} />
+              <span>+ Jour</span>
+            </button>
+            <button
+              type="button"
+              className="btn-glass-secondary flex-1 text-xs py-1.5 flex items-center justify-center gap-1.5"
+              onClick={() => {
+                handleAddRow();
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <Rows size={13} />
+              <span>+ Plage Horaire</span>
+            </button>
+          </div>
+
           {/* Boutons & Interface Ultra-Compacte */}
-          <div className="pt-2 border-t border-[var(--glass-border-subtle)] flex gap-2">
+          <div className="flex gap-2">
             <button
               type="button"
               className={`btn-glass-secondary flex-1 text-xs ${isMicroUI ? 'active' : ''}`}
