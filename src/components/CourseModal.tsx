@@ -1,14 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { X, Trash2, Check } from 'lucide-react';
-import { CourseEntry } from '../types';
+import { X, Trash2, Check, Copy, AlertTriangle, CheckSquare, Square } from 'lucide-react';
+import { CourseEntry, CourseTask } from '../types';
+import { timeToMinutes } from '../lib/courseLayout';
 
 export interface CourseModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSave: (course: CourseEntry) => void;
   onDelete?: (courseId: string) => void;
+  onDuplicate?: (course: CourseEntry) => void;
   initialCourse?: Partial<CourseEntry> | null;
   boardId: string;
+  existingCourses?: CourseEntry[];
 }
 
 const BADGE_COLORS = [
@@ -32,7 +35,6 @@ const DAYS = [
   { index: 5, label: 'Samedi' },
 ];
 
-// Génère les créneaux par pas de 15 min de 08:00 à 19:00
 const generateTimeSlots = (): string[] => {
   const slots: string[] = [];
   for (let h = 8; h <= 19; h++) {
@@ -53,8 +55,10 @@ export const CourseModal: React.FC<CourseModalProps> = ({
   onClose,
   onSave,
   onDelete,
+  onDuplicate,
   initialCourse,
-  boardId
+  boardId,
+  existingCourses = []
 }) => {
   const [title, setTitle] = useState('');
   const [room, setRoom] = useState('');
@@ -64,6 +68,10 @@ export const CourseModal: React.FC<CourseModalProps> = ({
   const [endTime, setEndTime] = useState('10:00');
   const [color, setColor] = useState('#4A90E2');
   const [notes, setNotes] = useState('');
+  const [tasks, setTasks] = useState<CourseTask[]>([]);
+  const [newTaskTitle, setNewTaskTitle] = useState('');
+  const [newTaskDueDate, setNewTaskDueDate] = useState('');
+  const [showTasksSection, setShowTasksSection] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const isEditMode = !!initialCourse?.id;
@@ -78,16 +86,47 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       setEndTime(initialCourse?.endTime || '10:00');
       setColor(initialCourse?.color || '#4A90E2');
       setNotes(initialCourse?.notes || '');
+      setTasks(initialCourse?.tasks ? [...initialCourse.tasks] : []);
+      setNewTaskTitle('');
+      setNewTaskDueDate('');
+      setShowTasksSection(Boolean(initialCourse?.tasks && initialCourse.tasks.length > 0));
       setError(null);
     }
   }, [isOpen, initialCourse]);
 
   if (!isOpen) return null;
 
-  // Calcul minutes pour vérification
-  const timeToMinutes = (t: string) => {
-    const [h, m] = t.split(':').map(Number);
-    return (h || 0) * 60 + (m || 0);
+  // Détection en direct des conflits de créneau
+  const startMin = timeToMinutes(startTime);
+  const endMin = timeToMinutes(endTime);
+
+  const overlappingCourse = existingCourses.find((c) => {
+    if (c.id === initialCourse?.id) return false;
+    if (c.dayIndex !== dayIndex) return false;
+    const cStart = timeToMinutes(c.startTime);
+    const cEnd = timeToMinutes(c.endTime);
+    return startMin < cEnd && endMin > cStart;
+  });
+
+  const handleAddTask = () => {
+    if (!newTaskTitle.trim()) return;
+    const newTask: CourseTask = {
+      id: 'task_' + Math.random().toString(36).substring(2, 9),
+      title: newTaskTitle.trim(),
+      dueDate: newTaskDueDate || undefined,
+      isCompleted: false
+    };
+    setTasks([...tasks, newTask]);
+    setNewTaskTitle('');
+    setNewTaskDueDate('');
+  };
+
+  const handleToggleTask = (taskId: string) => {
+    setTasks(tasks.map(t => t.id === taskId ? { ...t, isCompleted: !t.isCompleted } : t));
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    setTasks(tasks.filter(t => t.id !== taskId));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -96,9 +135,6 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       setError("Veuillez renseigner l'intitulé de la matière.");
       return;
     }
-
-    const startMin = timeToMinutes(startTime);
-    const endMin = timeToMinutes(endTime);
 
     if (endMin <= startMin) {
       setError("L'heure de fin doit être strictement supérieure à l'heure de début.");
@@ -116,6 +152,7 @@ export const CourseModal: React.FC<CourseModalProps> = ({
       endTime,
       color,
       notes: notes.trim() || undefined,
+      tasks: tasks.length > 0 ? tasks : undefined
     };
 
     onSave(courseToSave);
@@ -131,26 +168,54 @@ export const CourseModal: React.FC<CourseModalProps> = ({
     }
   };
 
+  const handleDuplicate = () => {
+    if (!title.trim()) return;
+    const duplicated: CourseEntry = {
+      id: 'course_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+      board_id: boardId,
+      dayIndex: (dayIndex + 1) % 6, // Propose le jour suivant
+      title: title.trim(),
+      room: room.trim() || undefined,
+      professor: professor.trim() || undefined,
+      startTime,
+      endTime,
+      color,
+      notes: notes.trim() || undefined,
+      tasks: tasks.length > 0 ? tasks.map(t => ({ ...t, id: 'task_' + Math.random().toString(36).substring(2, 9), isCompleted: false })) : undefined
+    };
+
+    if (onDuplicate) {
+      onDuplicate(duplicated);
+      onClose();
+    } else {
+      onSave(duplicated);
+      onClose();
+    }
+  };
+
   return (
     <div 
       className="fixed inset-0 z-50 flex items-center justify-center p-4 transition-all duration-200"
-      style={{ backgroundColor: 'rgba(0, 0, 0, 0.5)', backdropFilter: 'blur(4px)' }}
+      style={{ backgroundColor: 'rgba(0, 0, 0, 0.55)', backdropFilter: 'blur(5px)' }}
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
     >
       <div 
-        className="w-full max-w-[480px] bg-white text-gray-900 rounded-[20px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-[500px] bg-white text-gray-900 rounded-[22px] overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200"
         style={{ 
-          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.25)',
-          maxHeight: '90vh'
+          boxShadow: '0 20px 40px rgba(0, 0, 0, 0.3)',
+          maxHeight: '92vh'
         }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800">
-            {isEditMode ? 'Modifier le cours' : 'Nouveau cours'}
-          </h2>
+        <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100 bg-gray-50/50">
+          <div className="flex items-center gap-2">
+            <span className="w-3.5 h-3.5 rounded-full" style={{ backgroundColor: color }} />
+            <h2 className="text-lg font-bold text-gray-800">
+              {isEditMode ? 'Modifier le cours' : 'Nouveau cours'}
+            </h2>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -164,8 +229,20 @@ export const CourseModal: React.FC<CourseModalProps> = ({
         {/* Form Body */}
         <form onSubmit={handleSubmit} className="p-6 space-y-4 overflow-y-auto">
           {error && (
-            <div className="p-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg">
+            <div className="p-3 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded-xl">
               {error}
+            </div>
+          )}
+
+          {overlappingCourse && (
+            <div className="p-3 text-xs font-medium text-amber-800 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-2">
+              <AlertTriangle size={16} className="text-amber-600 flex-shrink-0 mt-0.5" />
+              <div>
+                <strong>Attention, chevauchement d'horaire :</strong>
+                <p className="mt-0.5 text-[11px] text-amber-700">
+                  Ce créneau chevauche le cours de <strong>{overlappingCourse.title}</strong> ({overlappingCourse.startTime} - {overlappingCourse.endTime}). Les cartes seront juxtaposées côte à côte.
+                </p>
+              </div>
             </div>
           )}
 
@@ -305,13 +382,106 @@ export const CourseModal: React.FC<CourseModalProps> = ({
             </div>
           </div>
 
-          {/* 6. REMARQUES / NOTES */}
+          {/* 6. SECTION DEVOIRS & TÂCHES ASSOCIÉS */}
+          <div className="border border-gray-200 rounded-xl p-3 bg-gray-50/50">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-semibold text-[#49454f] uppercase tracking-[0.5px]">
+                📝 DEVOIRS & EXAMENS ({tasks.length})
+              </span>
+              <button
+                type="button"
+                onClick={() => setShowTasksSection(!showTasksSection)}
+                className="text-xs font-semibold text-[#6200ee] hover:underline"
+              >
+                {showTasksSection ? 'Masquer' : '+ Gérer les devoirs'}
+              </button>
+            </div>
+
+            {showTasksSection && (
+              <div className="mt-3 space-y-2.5">
+                {/* Formulaire ajout tâche */}
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={newTaskTitle}
+                    onChange={(e) => setNewTaskTitle(e.target.value)}
+                    placeholder="Intitulé du devoir ou contrôle..."
+                    className="flex-1 px-3 py-1.5 text-xs bg-white border border-gray-300 rounded-lg outline-none focus:border-[#6200ee]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        handleAddTask();
+                      }
+                    }}
+                  />
+                  <input
+                    type="date"
+                    value={newTaskDueDate}
+                    onChange={(e) => setNewTaskDueDate(e.target.value)}
+                    className="px-2 py-1.5 text-xs bg-white border border-gray-300 rounded-lg outline-none focus:border-[#6200ee]"
+                    title="Date limite"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddTask}
+                    className="px-3 py-1.5 text-xs font-bold text-white bg-[#6200ee] hover:bg-[#5300d6] rounded-lg"
+                  >
+                    Ajouter
+                  </button>
+                </div>
+
+                {/* Liste des tâches */}
+                {tasks.length > 0 ? (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto pt-1">
+                    {tasks.map((task) => (
+                      <div
+                        key={task.id}
+                        className="flex items-center justify-between p-2 rounded-lg bg-white border border-gray-200 text-xs"
+                      >
+                        <div 
+                          className="flex items-center gap-2 cursor-pointer flex-1 min-w-0"
+                          onClick={() => handleToggleTask(task.id)}
+                        >
+                          {task.isCompleted ? (
+                            <CheckSquare size={16} className="text-emerald-500 flex-shrink-0" />
+                          ) : (
+                            <Square size={16} className="text-gray-400 flex-shrink-0" />
+                          )}
+                          <span className={`truncate ${task.isCompleted ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+                            {task.title}
+                          </span>
+                          {task.dueDate && (
+                            <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 flex-shrink-0">
+                              📅 {task.dueDate}
+                            </span>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteTask(task.id)}
+                          className="text-gray-400 hover:text-red-500 p-1"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[11px] text-gray-500 italic pt-1">
+                    Aucun devoir associé à cette matière.
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* 7. REMARQUES / NOTES */}
           <div>
             <label className="block text-[11px] font-semibold text-[#49454f] uppercase tracking-[0.5px] mb-1.5">
               REMARQUES / NOTES
             </label>
             <textarea
-              rows={3}
+              rows={2}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Ex: Chapitre 3 : Intégrales, Devoir à rendre, etc."
@@ -321,17 +491,28 @@ export const CourseModal: React.FC<CourseModalProps> = ({
 
           {/* Footer Buttons */}
           <div className="flex items-center justify-between pt-4 border-t border-gray-100">
-            <div>
-              {isEditMode && onDelete ? (
+            <div className="flex items-center gap-2">
+              {isEditMode && onDelete && (
                 <button
                   type="button"
                   onClick={handleDelete}
-                  className="px-3.5 py-2 text-xs font-semibold rounded-xl text-[#d32f2f] bg-[#ffebee] hover:bg-red-100 transition-colors flex items-center gap-1.5"
+                  className="px-3 py-2 text-xs font-semibold rounded-xl text-[#d32f2f] bg-[#ffebee] hover:bg-red-100 transition-colors flex items-center gap-1.5"
                 >
                   <Trash2 size={14} />
-                  <span>Supprimer</span>
+                  <span className="hidden sm:inline">Supprimer</span>
                 </button>
-              ) : <div />}
+              )}
+              {isEditMode && (
+                <button
+                  type="button"
+                  onClick={handleDuplicate}
+                  className="px-3 py-2 text-xs font-semibold rounded-xl text-[#6200ee] bg-[#f3e8ff] hover:bg-[#ebd5ff] transition-colors flex items-center gap-1.5"
+                  title="Dupliquer vers le jour suivant"
+                >
+                  <Copy size={14} />
+                  <span>Dupliquer</span>
+                </button>
+              )}
             </div>
 
             <div className="flex items-center gap-2">

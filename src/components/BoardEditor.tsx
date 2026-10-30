@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { 
   ArrowLeft, 
   Share2, 
@@ -14,19 +14,23 @@ import {
   FileText,
   Calendar,
   LayoutGrid,
-  ChevronLeft,
-  ChevronRight,
   Plus,
   Minimize2,
   Wand2,
   Sparkles,
-  Clock
+  Clock,
+  BarChart3,
+  Download,
+  Upload
 } from 'lucide-react';
 import { Board, BoardCell, BoardAxis, CourseEntry } from '../types';
 import { CellPropertiesPanel } from './CellPropertiesPanel';
 import { ShareModal } from './ShareModal';
 import { PrintPreviewModal } from './PrintPreviewModal';
 import { CourseModal } from './CourseModal';
+import { StatsModal } from './StatsModal';
+import { downloadIcsFile, parseIcsToCourses } from '../services/icalService';
+import { computeDayCourseLayouts } from '../lib/courseLayout';
 
 interface BoardEditorProps {
   board: Board;
@@ -41,6 +45,7 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
   const [selectedCellId, setSelectedCellId] = useState<string | null>(null);
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [isStatsModalOpen, setIsStatsModalOpen] = useState(false);
   const [isCourseModalOpen, setIsCourseModalOpen] = useState(false);
   const [editingCourse, setEditingCourse] = useState<Partial<CourseEntry> | null>(null);
   const [timetableDisplayMode, setTimetableDisplayMode] = useState<'proportional' | 'matrix'>(
@@ -49,13 +54,16 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
   const [editingAxisId, setEditingAxisId] = useState<string | null>(null);
   const [axisLabelInput, setAxisLabelInput] = useState('');
   
+  // Input de fichier masqué pour l'import iCal .ics
+  const icsFileInputRef = useRef<HTMLInputElement | null>(null);
+
   // États de présentation & réduction extrême
   const [zoom, setZoom] = useState<number>(100);
   const [tableScaleOnly, setTableScaleOnly] = useState<number>(board.settings?.tableScaleOnly || 100);
   const [density, setDensity] = useState<DensityMode>(
     (board.settings?.density as DensityMode) || (localStorage.getItem('planilux_density') as DensityMode) || 'normal'
   );
-  const [isMicroUI, setIsMicroUI] = useState(false);
+  const isMicroUI = density === 'micro';
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isWizardOpen, setIsWizardOpen] = useState(false);
 
@@ -135,6 +143,18 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
     });
   };
 
+  const handleDuplicateCourse = (courseToDuplicate: CourseEntry) => {
+    const duplicated: CourseEntry = {
+      ...courseToDuplicate,
+      id: 'course_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+      title: `${courseToDuplicate.title} (Copie)`
+    };
+    onUpdateBoard({
+      ...board,
+      courses: [...(board.courses || []), duplicated]
+    });
+  };
+
   const handleOpenCreateCourse = (dayIndex = 0, defaultTime = '08:00') => {
     const [h, m] = defaultTime.split(':').map(Number);
     const endH = Math.min(19, (h || 8) + 2).toString().padStart(2, '0');
@@ -146,6 +166,54 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
       color: '#4A90E2'
     });
     setIsCourseModalOpen(true);
+  };
+
+  // Import / Export iCalendar .ics
+  const handleExportIcs = () => {
+    downloadIcsFile(board);
+  };
+
+  const handleImportIcsClick = () => {
+    if (icsFileInputRef.current) {
+      icsFileInputRef.current.value = '';
+      icsFileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+      try {
+        const imported = parseIcsToCourses(text, board.id);
+        if (imported.length === 0) {
+          alert("Aucun événement valide n'a été trouvé dans ce fichier .ics.");
+          return;
+        }
+
+        const mode = confirm(
+          `📅 ${imported.length} cours ont été identifiés !\n\nCliquez sur "OK" pour les FUSIONNER avec vos cours existants.\nCliquez sur "Annuler" pour REMPLACER votre planning par ces cours.`
+        );
+
+        const newCourses = mode 
+          ? [...(board.courses || []), ...imported]
+          : imported;
+
+        onUpdateBoard({
+          ...board,
+          courses: newCourses
+        });
+        alert(`✅ Importation réussie : ${imported.length} cours chargés !`);
+      } catch (err) {
+        console.error(err);
+        alert("Erreur lors de la lecture du fichier .ics.");
+      }
+    };
+    reader.readAsText(file);
   };
 
   // Ajouter une colonne (ex: jour supplémentaire)
@@ -280,7 +348,7 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
     setEditingAxisId(null);
   };
 
-  // Assistant Mobile de Création Rapide (Générateur rapide au téléphone)
+  // Assistant Mobile de Création Rapide
   const applyQuickMobilePreset = (type: 'school_standard' | 'university' | 'work_shifts') => {
     let days: string[] = [];
     let hours: string[] = [];
@@ -424,6 +492,15 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
   return (
     <div className={`editor-container ${isMicroUI ? 'micro-ui-mode' : ''}`}>
       
+      {/* Input de fichier caché pour l'import .ics */}
+      <input 
+        type="file" 
+        ref={icsFileInputRef} 
+        onChange={handleFileChange} 
+        accept=".ics,text/calendar" 
+        className="hidden" 
+      />
+
       {/* 1. Barre d'outils responsive en Verre Dépoli */}
       <header className="editor-toolbar" style={{ padding: isMicroUI ? '0.25rem 0.5rem' : '0.45rem 0.85rem' }}>
         
@@ -503,7 +580,7 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                 setDensity('ultra-compact');
                 document.documentElement.setAttribute('data-density', 'ultra-compact');
               }}
-              title="Densité Ultra-Compact (75%)"
+              title="Densité Ultra-Compacte (75%)"
             >
               ⚡ Ultra
             </button>
@@ -514,7 +591,7 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                 setDensity('compact');
                 document.documentElement.setAttribute('data-density', 'compact');
               }}
-              title="Densité Compact (88%)"
+              title="Densité Compacte (88%)"
             >
               📐 Compact
             </button>
@@ -525,28 +602,28 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                 setDensity('normal');
                 document.documentElement.setAttribute('data-density', 'normal');
               }}
-              title="Densité Standard (100%)"
+              title="Densité Normale (100%)"
             >
               🖥 Normal
             </button>
           </div>
 
-          {/* Bascule Vue Grille Horaire vs Matrice (pour emplois du temps) */}
-          <div className="toolbar-pill-group hidden md:flex" style={{ background: 'rgba(98, 0, 238, 0.08)', border: '1px solid rgba(98, 0, 238, 0.25)' }}>
+          {/* Sélecteur de mode d'affichage pour Emploi du Temps */}
+          <div className="toolbar-pill-group" style={{ background: 'rgba(99, 102, 241, 0.1)', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
             <button
               type="button"
-              className={`btn-glass-pill ${timetableDisplayMode === 'proportional' ? 'active' : ''}`}
               onClick={() => setTimetableDisplayMode('proportional')}
-              title="Vue grille horaire continue (08h00 - 19h00 avec cartes de cours)"
+              className={`btn-glass-pill ${timetableDisplayMode === 'proportional' ? 'active' : ''}`}
+              title="Grille continue 08h00 - 19h00 avec cartes horaires proportionnelles"
             >
               <Clock size={12} style={{ display: 'inline', marginRight: '3px' }} />
-              <span>Grille 08h-19h</span>
+              <span>Grille Pro</span>
             </button>
             <button
               type="button"
-              className={`btn-glass-pill ${timetableDisplayMode === 'matrix' ? 'active' : ''}`}
               onClick={() => setTimetableDisplayMode('matrix')}
-              title="Vue matrice de cases tabulaires classique"
+              className={`btn-glass-pill ${timetableDisplayMode === 'matrix' ? 'active' : ''}`}
+              title="Affichage sous forme de matrice / tableau classique"
             >
               <LayoutGrid size={12} style={{ display: 'inline', marginRight: '3px' }} />
               <span>Matrice</span>
@@ -566,7 +643,7 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
           </button>
         </div>
 
-        {/* Partie droite : Bascule de Vue Mobile (Semaine vs Jour) & Actions */}
+        {/* Partie droite : Bascule de Vue Mobile & Actions Universelles */}
         <div className="editor-toolbar-right">
           
           {/* SÉLECTEUR DE VUE MOBILE CLÉ : Semaine vs Jour par Jour */}
@@ -593,7 +670,39 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             </button>
           </div>
 
-          {/* Boutons d'ajout de structure (visibles à partir de sm) */}
+          {/* Bouton Statistiques & Volume Horaire */}
+          <button
+            type="button"
+            className="btn-glass-secondary hidden sm:inline-flex"
+            onClick={() => setIsStatsModalOpen(true)}
+            title="Afficher les statistiques de volume horaire et devoirs"
+          >
+            <BarChart3 size={14} className="text-[var(--primary)]" />
+            <span className="hidden lg:inline">Stats</span>
+          </button>
+
+          {/* Boutons Import / Export iCalendar .ics */}
+          <button
+            type="button"
+            className="btn-glass-secondary hidden lg:inline-flex"
+            onClick={handleImportIcsClick}
+            title="Importer un fichier .ics (ADE Campus, Google Agenda, Outlook)"
+          >
+            <Upload size={13} />
+            <span>Import .ics</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn-glass-secondary hidden lg:inline-flex"
+            onClick={handleExportIcs}
+            title="Exporter l'emploi du temps au format universel .ics"
+          >
+            <Download size={13} />
+            <span>Export .ics</span>
+          </button>
+
+          {/* Boutons d'ajout de structure */}
           <button 
             type="button"
             className="btn-glass-secondary hidden sm:inline-flex" 
@@ -625,7 +734,7 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             <span>Assistant</span>
           </button>
 
-          {/* Bouton Partager (Desktop) */}
+          {/* Bouton Partager */}
           <button 
             type="button"
             className="btn-glass-secondary hidden lg:inline-flex" 
@@ -641,10 +750,10 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             type="button"
             className="btn-glass-black" 
             onClick={() => setIsPrintModalOpen(true)} 
-            title="Aperçu d'impression, personnalisation et export"
+            title="Aperçu d'impression, personnalisation et export PDF vectoriel"
           >
             <Printer size={14} />
-            <span className="hidden xs:inline">Imprimer</span>
+            <span className="hidden xs:inline">Imprimer / PDF</span>
           </button>
 
           {/* Bouton Options avancées pour mobile */}
@@ -652,7 +761,7 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             type="button"
             className="btn-glass-secondary btn-icon md:hidden"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            title="Options d'affichage et réduction extrême"
+            title="Options d'affichage, stats et synchronisation"
             aria-label="Options"
           >
             <Sliders size={15} />
@@ -660,12 +769,12 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
         </div>
       </header>
 
-      {/* Volet déroulant d'options Mobile (Contrôles fins au pouce) */}
+      {/* Volet déroulant d'options Mobile */}
       {isMobileMenuOpen && (
         <div className="mobile-options-drawer md:hidden">
           <div className="flex items-center justify-between pb-2 mb-2 border-b border-[var(--glass-border-subtle)]">
             <span className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider">
-              Réglages Fins & Réduction Extrême
+              Réglages & Outils PlaniLux
             </span>
             <button 
               type="button"
@@ -676,7 +785,58 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             </button>
           </div>
 
-          {/* Densité sur mobile avec Micro */}
+          {/* Actions rapides Mobile : Stats, iCal, Partage */}
+          <div className="grid grid-cols-2 gap-2 mb-3">
+            <button
+              type="button"
+              className="btn-glass-secondary py-2 text-xs font-semibold justify-center"
+              onClick={() => {
+                setIsStatsModalOpen(true);
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <BarChart3 size={14} className="text-[var(--primary)]" />
+              <span>Statistiques</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-glass-secondary py-2 text-xs font-semibold justify-center"
+              onClick={() => {
+                handleExportIcs();
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <Download size={14} />
+              <span>Export .ics</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-glass-secondary py-2 text-xs font-semibold justify-center"
+              onClick={() => {
+                handleImportIcsClick();
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <Upload size={14} />
+              <span>Import .ics</span>
+            </button>
+
+            <button
+              type="button"
+              className="btn-glass-secondary py-2 text-xs font-semibold justify-center"
+              onClick={() => {
+                setIsShareModalOpen(true);
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <Share2 size={14} />
+              <span>Partager</span>
+            </button>
+          </div>
+
+          {/* Densité sur mobile */}
           <div className="mb-2.5">
             <label className="text-xs text-[var(--text-secondary)] font-medium mb-1 block">
               Densité des cases :
@@ -713,256 +873,188 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             </div>
           </div>
 
-          {/* Zoom global sur mobile (30% à 150%) */}
+          {/* Zoom global sur mobile */}
           <div className="mb-2.5">
             <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] font-medium mb-1">
               <span>Échelle globale : {zoom}%</span>
               <button
                 type="button"
                 onClick={() => setZoom(100)}
-                className="text-xs text-[var(--primary)] font-semibold"
+                className="text-[var(--primary)] text-[11px] underline"
               >
-                100%
+                Reset
               </button>
             </div>
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="btn-glass-secondary btn-icon p-1.5"
+                className="btn-glass-secondary btn-icon p-1"
                 onClick={() => setZoom(z => Math.max(30, z - 10))}
               >
-                <ZoomOut size={13} />
+                <ZoomOut size={14} />
               </button>
-              <input
-                type="range"
-                min="30"
-                max="150"
-                step="5"
-                value={zoom}
+              <input 
+                type="range" 
+                min={30} 
+                max={150} 
+                step={5} 
+                value={zoom} 
                 onChange={(e) => setZoom(Number(e.target.value))}
-                className="w-full"
+                className="flex-1 accent-[var(--primary)] h-1.5 bg-gray-200 rounded-lg cursor-pointer"
               />
               <button
                 type="button"
-                className="btn-glass-secondary btn-icon p-1.5"
+                className="btn-glass-secondary btn-icon p-1"
                 onClick={() => setZoom(z => Math.min(150, z + 10))}
               >
-                <ZoomIn size={13} />
+                <ZoomIn size={14} />
               </button>
             </div>
           </div>
 
-          {/* Réduire la table seule sur mobile */}
-          <div className="mb-2.5">
-            <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] font-medium mb-1">
-              <span>Réduire la table seulement : {tableScaleOnly}%</span>
-              <button
-                type="button"
-                onClick={() => setTableScaleOnly(s => (s === 100 ? 60 : 100))}
-                className="text-xs text-[var(--primary)] font-semibold"
-              >
-                {tableScaleOnly < 100 ? 'Rétablir' : 'Ultra-Petit'}
-              </button>
-            </div>
-            <input
-              type="range"
-              min="30"
-              max="130"
-              step="5"
-              value={tableScaleOnly}
-              onChange={(e) => setTableScaleOnly(Number(e.target.value))}
-              className="w-full"
-            />
-          </div>
-
-          {/* Actions d'ajout de structure sur mobile */}
-          <div className="pt-2 border-t border-[var(--glass-border-subtle)] flex gap-2 mb-2">
+          {/* Mode d'affichage Emploi du Temps sur Mobile */}
+          <div className="flex gap-2 pt-2 border-t border-[var(--glass-border-subtle)]">
             <button
               type="button"
-              className="btn-glass-secondary flex-1 text-xs py-1.5 flex items-center justify-center gap-1.5"
-              onClick={() => {
-                handleAddColumn();
-                setIsMobileMenuOpen(false);
-              }}
+              className={`btn-glass-pill flex-1 text-center ${timetableDisplayMode === 'proportional' ? 'active' : ''}`}
+              onClick={() => setTimetableDisplayMode('proportional')}
             >
-              <Columns size={13} />
-              <span>+ Jour</span>
+              Grille Pro 08h-19h
             </button>
             <button
               type="button"
-              className="btn-glass-secondary flex-1 text-xs py-1.5 flex items-center justify-center gap-1.5"
-              onClick={() => {
-                handleAddRow();
-                setIsMobileMenuOpen(false);
-              }}
+              className={`btn-glass-pill flex-1 text-center ${timetableDisplayMode === 'matrix' ? 'active' : ''}`}
+              onClick={() => setTimetableDisplayMode('matrix')}
             >
-              <Rows size={13} />
-              <span>+ Plage Horaire</span>
-            </button>
-          </div>
-
-          {/* Boutons & Interface Ultra-Compacte */}
-          <div className="flex gap-2">
-            <button
-              type="button"
-              className={`btn-glass-secondary flex-1 text-xs ${isMicroUI ? 'active' : ''}`}
-              onClick={() => setIsMicroUI(!isMicroUI)}
-            >
-              <Minimize2 size={13} />
-              <span>{isMicroUI ? 'Interface normale' : 'Interface Micro-UI'}</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn-glass-secondary flex-1 text-xs"
-              onClick={() => {
-                setIsWizardOpen(true);
-                setIsMobileMenuOpen(false);
-              }}
-            >
-              <Wand2 size={13} color="var(--primary)" />
-              <span>Assistant Rapide</span>
+              Mode Tableau
             </button>
           </div>
         </div>
       )}
 
-      {/* 2. Zone Principale de Travail */}
-      <div className="editor-main">
+      {/* 2. Conteneur principal de l'éditeur */}
+      <main className="editor-main">
         
         {/* =====================================================================
-            A. MODE VUE QUOTIDIENNE (JOUR PAR JOUR) — OPTIMISÉ POUR SMARTPHONE
-            ===================================================================== */}
+           VUE QUOTIDIENNE ("JOUR PAR JOUR") MOBILE (Smartphone portrait)
+           ===================================================================== */}
         {mobileView === 'day' ? (
-          <div className="flex-1 overflow-y-auto p-3 sm:p-5 flex flex-col items-center w-full max-w-xl mx-auto">
+          <div className="mobile-daily-container">
             
-            {/* Barre de navigation entre les jours au pouce */}
-            <div className="w-full bg-[var(--bg-secondary)] border border-[var(--glass-border)] rounded-2xl p-2.5 shadow-md mb-3 flex items-center justify-between gap-2">
-              <button
-                type="button"
-                className="btn-glass-secondary btn-icon p-2"
-                onClick={() => setActiveDayIdx(i => Math.max(0, i - 1))}
-                disabled={activeDayIdx === 0}
-                title="Jour précédent"
-              >
-                <ChevronLeft size={16} />
-              </button>
-
-              <div className="text-center">
-                <div className="text-xs font-semibold text-[var(--primary)] uppercase tracking-wider">
-                  Jour {activeDayIdx + 1} sur {colAxes.length}
-                </div>
-                <h3 className="text-base font-extrabold text-[var(--text-primary)]">
-                  {activeCol?.label || 'Jour'}
-                </h3>
-              </div>
-
-              <button
-                type="button"
-                className="btn-glass-secondary btn-icon p-2"
-                onClick={() => setActiveDayIdx(i => Math.min(colAxes.length - 1, i + 1))}
-                disabled={activeDayIdx === colAxes.length - 1}
-                title="Jour suivant"
-              >
-                <ChevronRight size={16} />
-              </button>
-            </div>
-
-            {/* Sélecteur de pastilles des jours */}
-            <div className="w-full flex gap-1.5 overflow-x-auto pb-2 mb-3 no-scrollbar">
-              {colAxes.map((col, idx) => (
-                <button
-                  key={col.id}
-                  type="button"
-                  onClick={() => setActiveDayIdx(idx)}
-                  className={`btn-glass-pill flex-1 min-w-[50px] py-2 text-center text-xs font-bold transition-transform ${activeDayIdx === idx ? 'active scale-105' : ''}`}
-                >
-                  {col.label.slice(0, 3)}
-                </button>
-              ))}
-            </div>
-
-            {/* Liste verticale des créneaux pour le jour actif */}
-            <div className="w-full flex flex-col gap-2.5">
-              {rowAxes.map(row => {
-                const cell = activeCol ? board.cells.find(c => c.row_axis_id === row.id && c.column_axis_id === activeCol.id) : null;
-                const isSelected = selectedCellId === cell?.id;
-                const hasContent = Boolean(cell?.content);
-                const style = cell?.text_style || {};
+            {/* Barre de navigation des jours avec badges de cours */}
+            <div className="mobile-day-tabs">
+              {colAxes.map((col, idx) => {
+                const isActive = idx === activeDayIdx;
+                const coursesCount = (board.courses || []).filter(c => c.dayIndex === idx).length;
 
                 return (
-                  <div
-                    key={row.id}
-                    onClick={() => cell && setSelectedCellId(cell.id)}
-                    className={`rounded-xl p-3 border transition-all cursor-pointer shadow-sm flex items-center justify-between gap-3 ${
-                      isSelected 
-                        ? 'border-[var(--primary)] ring-2 ring-[var(--primary)] shadow-md' 
-                        : 'border-[var(--glass-border-subtle)] bg-[var(--bg-glass-card)]'
-                    }`}
-                    style={{
-                      backgroundColor: cell?.background_color && cell.background_color !== '#ffffff' ? cell.background_color : undefined,
-                      color: cell?.text_color || 'var(--text-primary)'
-                    }}
+                  <button
+                    key={col.id}
+                    type="button"
+                    onClick={() => setActiveDayIdx(idx)}
+                    className={`mobile-day-tab ${isActive ? 'active' : ''}`}
                   >
-                    {/* Badge horaire fixe */}
-                    <div className="flex flex-col items-start min-w-[75px] border-r border-[var(--border-light)] pr-2.5">
-                      <span className="text-[0.72rem] font-bold text-[var(--text-secondary)] uppercase">
-                        Plage
-                      </span>
-                      <span className="text-xs font-extrabold text-[var(--primary)]">
-                        {row.label}
-                      </span>
-                    </div>
-
-                    {/* Contenu du cours / créneau */}
-                    <div className="flex-1 min-w-0">
-                      {hasContent ? (
-                        <p 
-                          className="text-sm font-semibold truncate leading-snug"
-                          style={{
-                            fontWeight: style.bold ? 700 : 500,
-                            fontStyle: style.italic ? 'italic' : 'normal',
-                            textDecoration: style.underline ? 'underline' : 'none'
-                          }}
-                        >
-                          {cell?.content}
-                        </p>
-                      ) : (
-                        <span className="text-xs text-[var(--text-muted)] italic flex items-center gap-1">
-                          <Plus size={12} />
-                          <span>Appuyez pour ajouter un cours</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      className="btn-ghost btn-icon p-1.5 opacity-60 hover:opacity-100"
-                      title="Modifier ce créneau"
-                    >
-                      <Sliders size={14} />
-                    </button>
-                  </div>
+                    <span className="mobile-day-tab-label">{col.label.substring(0, 3)}</span>
+                    {coursesCount > 0 && (
+                      <span className="mobile-day-tab-badge">{coursesCount}</span>
+                    )}
+                  </button>
                 );
               })}
             </div>
 
-            {/* Action d'ajout rapide au bas de la vue quotidienne */}
-            <div className="w-full mt-4 flex gap-2">
+            {/* En-tête du jour sélectionné avec action d'ajout */}
+            <div className="flex items-center justify-between px-1 py-2 mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base font-extrabold text-[var(--text-primary)]">
+                  {activeCol?.label}
+                </span>
+                <span className="text-xs text-[var(--text-secondary)] font-medium">
+                  {((board.courses || []).filter(c => c.dayIndex === activeDayIdx)).length} cours prévu(s)
+                </span>
+              </div>
+              
               <button
                 type="button"
-                onClick={handleAddRow}
-                className="btn-glass-secondary flex-1 py-2.5 text-xs font-semibold justify-center"
+                onClick={() => handleOpenCreateCourse(activeDayIdx, '08:00')}
+                className="btn-glass-primary text-xs py-1 px-2.5 flex items-center gap-1"
               >
-                <Plus size={14} />
-                <span>Ajouter une heure à {activeCol?.label}</span>
+                <Plus size={13} />
+                <span>Nouveau cours</span>
               </button>
+            </div>
+
+            {/* Liste verticale des cours du jour sélectionné */}
+            <div className="space-y-3 pb-8">
+              {((board.courses || []).filter(c => c.dayIndex === activeDayIdx)).length === 0 ? (
+                <div className="p-8 text-center border border-dashed border-[var(--glass-border-subtle)] rounded-2xl bg-[var(--bg-glass-card)]">
+                  <p className="text-sm font-semibold text-[var(--text-secondary)]">Aucun cours ce jour-là</p>
+                  <p className="text-xs text-[var(--text-muted)] mt-1">Appuyez sur le bouton ci-dessous pour ajouter un cours.</p>
+                  <button
+                    type="button"
+                    onClick={() => handleOpenCreateCourse(activeDayIdx, '08:00')}
+                    className="btn-glass-primary mt-4 py-2 px-4 text-xs font-semibold inline-flex items-center gap-1.5"
+                  >
+                    <Plus size={14} />
+                    <span>Ajouter un cours</span>
+                  </button>
+                </div>
+              ) : (
+                (board.courses || [])
+                  .filter(c => c.dayIndex === activeDayIdx)
+                  .sort((a, b) => timeToMin(a.startTime) - timeToMin(b.startTime))
+                  .map((course) => {
+                    const pendingTasks = (course.tasks || []).filter(t => !t.isCompleted).length;
+                    return (
+                      <div
+                        key={course.id}
+                        onClick={() => {
+                          setEditingCourse(course);
+                          setIsCourseModalOpen(true);
+                        }}
+                        className="rounded-2xl p-4 shadow-sm border border-[var(--glass-border-subtle)] bg-[var(--bg-glass-card)] cursor-pointer active:scale-[0.98] transition-all flex flex-col justify-between relative overflow-hidden"
+                        style={{ borderLeft: `6px solid ${course.color}` }}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <div className="font-extrabold text-base text-[var(--text-primary)]">
+                              {course.title}
+                            </div>
+                            {course.professor && (
+                              <div className="text-xs font-medium text-[var(--text-secondary)] mt-0.5">
+                                👨‍🏫 {course.professor}
+                              </div>
+                            )}
+                          </div>
+                          <span 
+                            className="px-2.5 py-1 rounded-full text-xs font-bold font-mono text-white flex-shrink-0"
+                            style={{ backgroundColor: course.color }}
+                          >
+                            {course.startTime} - {course.endTime}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center justify-between text-xs text-[var(--text-secondary)] font-semibold mt-3 pt-2 border-t border-[var(--glass-border-subtle)]">
+                          <span>📍 {course.room || 'Salle non précisée'}</span>
+                          {pendingTasks > 0 ? (
+                            <span className="text-[11px] font-bold text-amber-500 bg-amber-500/10 px-2 py-0.5 rounded-full">
+                              📝 {pendingTasks} devoir{pendingTasks > 1 ? 's' : ''}
+                            </span>
+                          ) : (
+                            <span className="text-[11px] text-[var(--text-muted)]">Cliquer pour modifier</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
             </div>
 
           </div>
         ) : timetableDisplayMode === 'proportional' ? (
           /* =====================================================================
              B1. MODE GRILLE HORAIRE PROPORTIONNELLE CONTINUE (08H00 - 19H00)
+             AVEC GESTION INTELLIGENTE DES CHEVAUCHEMENTS & SOUS-COLONNES
              ===================================================================== */
           <div className="grid-viewport touch-scroll-container">
             <div 
@@ -1041,9 +1133,11 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                     ))}
                   </div>
 
-                  {/* Colonnes des jours avec créneaux et cartes */}
+                  {/* Colonnes des jours avec créneaux et cartes proportionnelles */}
                   {colAxes.map((col, dayIdx) => {
                     const dayCourses = (board.courses || []).filter(c => c.dayIndex === dayIdx);
+                    // Calcul intelligent des sous-colonnes en cas de chevauchement d'horaires
+                    const dayLayouts = computeDayCourseLayouts(dayCourses);
 
                     return (
                       <div
@@ -1072,9 +1166,17 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                           );
                         })}
 
-                        {/* Cartes de cours proportionnelles */}
+                        {/* Cartes de cours proportionnelles avec disposition en sous-colonnes */}
                         {dayCourses.map((course) => {
                           const { top, height } = getCourseTopAndHeight(course.startTime, course.endTime, totalHeight);
+                          const layout = dayLayouts.get(course.id) || { colIndex: 0, totalCols: 1, hasConflict: false };
+                          const isSplit = layout.totalCols > 1;
+
+                          const cardWidth = isSplit ? `calc((100% - 10px) / ${layout.totalCols} - 2px)` : undefined;
+                          const cardLeft = isSplit ? `calc(5px + (${layout.colIndex} * ((100% - 10px) / ${layout.totalCols})))` : '6px';
+                          const cardRight = isSplit ? undefined : '6px';
+
+                          const pendingTasks = (course.tasks || []).filter(t => !t.isCompleted).length;
 
                           return (
                             <div
@@ -1084,21 +1186,34 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                                 setEditingCourse(course);
                                 setIsCourseModalOpen(true);
                               }}
-                              className="absolute left-1.5 right-1.5 rounded-[8px] p-2.5 shadow-md cursor-pointer transition-all duration-150 hover:scale-[1.02] hover:shadow-lg active:scale-95 flex flex-col justify-between overflow-hidden group"
+                              className="absolute rounded-[10px] p-2.5 shadow-md cursor-pointer transition-all duration-150 hover:scale-[1.02] hover:shadow-xl active:scale-95 flex flex-col justify-between overflow-hidden group"
                               style={{
                                 top: `${top}px`,
                                 height: `${height}px`,
+                                width: cardWidth,
+                                left: cardLeft,
+                                right: cardRight,
                                 backgroundColor: course.color,
                                 color: '#ffffff',
                                 zIndex: 15,
-                                border: '1px solid rgba(255, 255, 255, 0.3)',
-                                boxShadow: '0 3px 10px rgba(0, 0, 0, 0.18)'
+                                border: layout.hasConflict ? '2px dashed #f59e0b' : '1px solid rgba(255, 255, 255, 0.35)',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.2)'
                               }}
-                              title={`${course.title} (${course.startTime} - ${course.endTime})\nCliquer pour modifier`}
+                              title={`${course.title} (${course.startTime} - ${course.endTime})${layout.hasConflict ? '\n⚠️ Attention: chevauchement d\'horaire' : ''}\nCliquer pour modifier`}
                             >
                               <div>
-                                <div className="font-extrabold text-xs sm:text-sm leading-snug drop-shadow-sm truncate">
-                                  {course.title}
+                                <div className="flex items-start justify-between gap-1">
+                                  <div className="font-extrabold text-xs sm:text-sm leading-snug drop-shadow-sm truncate">
+                                    {course.title}
+                                  </div>
+                                  {layout.hasConflict && (
+                                    <span 
+                                      className="text-[9px] font-black px-1 py-0.5 rounded bg-amber-500 text-black flex-shrink-0 animate-pulse"
+                                      title="Chevauchement détecté"
+                                    >
+                                      ⚠️ Conflit
+                                    </span>
+                                  )}
                                 </div>
                                 {course.professor && (
                                   <div className="text-[11px] font-medium opacity-90 truncate mt-0.5">
@@ -1109,11 +1224,18 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
 
                               <div className="flex items-center justify-between text-[10px] sm:text-[11px] font-semibold opacity-95 pt-1 mt-1 border-t border-white/20">
                                 <span className="truncate max-w-[60%]">
-                                  📍 {course.room || 'Salle non déf.'}
+                                  📍 {course.room || 'Salle ?'}
                                 </span>
-                                <span className="font-mono flex-shrink-0">
-                                  {course.startTime} - {course.endTime}
-                                </span>
+                                <div className="flex items-center gap-1">
+                                  {pendingTasks > 0 && (
+                                    <span className="text-[10px] bg-white/25 px-1 rounded font-bold">
+                                      📝 {pendingTasks}
+                                    </span>
+                                  )}
+                                  <span className="font-mono flex-shrink-0">
+                                    {course.startTime} - {course.endTime}
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           );
@@ -1182,56 +1304,60 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                       </div>
                     </th>
 
-                    {/* En-têtes de colonnes (Jours de la semaine) */}
+                    {/* En-têtes de colonnes (Jours) */}
                     {colAxes.map((col) => (
                       <th 
                         key={col.id} 
+                        className="col-header"
                         style={{ 
-                          minWidth: `${Math.max(parseInt(dStyle.cellMinWidth), col.size_px || 100)}px`,
+                          minWidth: dStyle.headerMinWidth,
                           padding: dStyle.headerPadding 
                         }}
                       >
-                        <div className="flex items-center justify-center gap-1 relative">
+                        <div className="axis-header-content">
                           {editingAxisId === col.id ? (
                             <div className="flex items-center gap-1">
                               <input
                                 type="text"
+                                className="axis-edit-input"
                                 value={axisLabelInput}
                                 onChange={(e) => setAxisLabelInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && saveEditAxis(col.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveEditAxis(col.id);
+                                  if (e.key === 'Escape') setEditingAxisId(null);
+                                }}
                                 autoFocus
-                                className="text-xs p-1 rounded border border-[var(--primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] w-20 text-center"
                               />
                               <button 
                                 type="button"
-                                className="btn-ghost btn-icon p-0.5 text-emerald-500" 
+                                className="btn-ghost btn-icon p-1 text-emerald-600"
                                 onClick={() => saveEditAxis(col.id)}
                               >
                                 <Check size={12} />
                               </button>
                             </div>
                           ) : (
-                            <span
+                            <div 
+                              className="axis-label cursor-pointer"
                               onClick={() => startEditAxis(col)}
-                              title="Cliquer pour renommer ce jour"
-                              className="cursor-pointer font-bold hover:text-[var(--primary)] transition-colors select-none"
+                              title="Double-cliquer pour renommer"
                               style={{ fontSize: dStyle.fontSize }}
                             >
                               {col.label}
-                            </span>
+                            </div>
                           )}
 
-                          {colAxes.length > 1 && (
-                            <button
-                              type="button"
-                              className="btn-ghost btn-icon p-0.5 opacity-35 hover:opacity-100 hover:text-red-500 transition-opacity"
-                              onClick={() => handleDeleteColumn(col.id)}
-                              title="Supprimer cette colonne"
-                              aria-label={`Supprimer ${col.label}`}
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          )}
+                          <button 
+                            type="button"
+                            className="axis-delete-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteColumn(col.id);
+                            }}
+                            title="Supprimer ce jour"
+                          >
+                            <Trash2 size={11} />
+                          </button>
                         </div>
                       </th>
                     ))}
@@ -1241,91 +1367,94 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
                 <tbody>
                   {rowAxes.map((row) => (
                     <tr key={row.id}>
-                      {/* En-tête de ligne (Créneau horaire) */}
-                      <td 
+                      {/* En-tête de ligne (Plage horaire) */}
+                      <th 
                         className="row-header"
                         style={{ 
-                          minWidth: dStyle.headerMinWidth,
+                          minHeight: dStyle.cellMinHeight,
                           padding: dStyle.headerPadding 
                         }}
                       >
-                        <div className="flex items-center justify-between gap-1">
+                        <div className="axis-header-content">
                           {editingAxisId === row.id ? (
-                            <div className="flex items-center gap-1 w-full">
+                            <div className="flex items-center gap-1">
                               <input
                                 type="text"
+                                className="axis-edit-input"
                                 value={axisLabelInput}
                                 onChange={(e) => setAxisLabelInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && saveEditAxis(row.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') saveEditAxis(row.id);
+                                  if (e.key === 'Escape') setEditingAxisId(null);
+                                }}
                                 autoFocus
-                                className="text-xs p-1 rounded border border-[var(--primary)] bg-[var(--bg-primary)] text-[var(--text-primary)] w-full"
                               />
                               <button 
                                 type="button"
-                                className="btn-ghost btn-icon p-0.5 text-emerald-500" 
+                                className="btn-ghost btn-icon p-1 text-emerald-600"
                                 onClick={() => saveEditAxis(row.id)}
                               >
                                 <Check size={12} />
                               </button>
                             </div>
                           ) : (
-                            <span
+                            <div 
+                              className="axis-label cursor-pointer"
                               onClick={() => startEditAxis(row)}
-                              title="Cliquer pour modifier l'horaire"
-                              className="cursor-pointer font-semibold hover:text-[var(--primary)] transition-colors select-none"
+                              title="Double-cliquer pour renommer"
                               style={{ fontSize: dStyle.fontSize }}
                             >
                               {row.label}
-                            </span>
+                            </div>
                           )}
 
-                          {rowAxes.length > 1 && (
-                            <button
-                              type="button"
-                              className="btn-ghost btn-icon p-0.5 opacity-30 hover:opacity-100 hover:text-red-500 transition-opacity"
-                              onClick={() => handleDeleteRow(row.id)}
-                              title="Supprimer ce créneau"
-                              aria-label={`Supprimer ${row.label}`}
-                            >
-                              <Trash2 size={11} />
-                            </button>
-                          )}
+                          <button 
+                            type="button"
+                            className="axis-delete-btn"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteRow(row.id);
+                            }}
+                            title="Supprimer cette plage"
+                          >
+                            <Trash2 size={11} />
+                          </button>
                         </div>
-                      </td>
+                      </th>
 
-                      {/* Cellules du planning */}
+                      {/* Cellules du tableau */}
                       {colAxes.map((col) => {
-                        const cell = board.cells.find(c => c.row_axis_id === row.id && c.column_axis_id === col.id);
-                        const isSelected = selectedCellId === cell?.id;
-                        const style = cell?.text_style || {};
+                        const cell = board.cells.find(
+                          c => c.row_axis_id === row.id && c.column_axis_id === col.id
+                        );
+                        const isSelected = cell ? cell.id === selectedCellId : false;
+                        const cellStyle = cell?.text_style || {};
 
                         return (
-                          <td
-                            key={col.id}
+                          <td 
+                            key={`${row.id}-${col.id}`}
                             className={`planner-cell ${isSelected ? 'selected' : ''}`}
                             onClick={() => cell && setSelectedCellId(cell.id)}
                             style={{
+                              backgroundColor: cell?.background_color && cell.background_color !== '#ffffff' ? cell.background_color : undefined,
+                              color: cell?.text_color || undefined,
                               padding: dStyle.cellPadding,
                               minHeight: dStyle.cellMinHeight,
-                              minWidth: dStyle.cellMinWidth,
-                              fontSize: dStyle.fontSize,
-                              backgroundColor: cell?.background_color && cell.background_color !== '#ffffff' ? cell.background_color : undefined,
-                              color: cell?.text_color || 'var(--text-primary)',
-                              fontWeight: style.bold ? 700 : 400,
-                              fontStyle: style.italic ? 'italic' : 'normal',
-                              textDecoration: style.underline ? 'underline' : 'none',
-                              textAlign: style.align || 'center'
+                              minWidth: dStyle.cellMinWidth
                             }}
                           >
-                            {cell?.content ? (
-                              <div className="cell-content-wrapper">
-                                {cell.content}
-                              </div>
-                            ) : (
-                              <div className="cell-empty-placeholder">
-                                +
-                              </div>
-                            )}
+                            <div 
+                              className="cell-text-container"
+                              style={{
+                                textAlign: cellStyle.align || 'center',
+                                fontWeight: cellStyle.bold ? 700 : undefined,
+                                fontStyle: cellStyle.italic ? 'italic' : undefined,
+                                textDecoration: cellStyle.underline ? 'underline' : undefined,
+                                fontSize: dStyle.fontSize
+                              }}
+                            >
+                              {cell?.content || ''}
+                            </div>
                           </td>
                         );
                       })}
@@ -1336,18 +1465,18 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
             </div>
 
             {/* Bloc de notes au bas du tableau */}
-            <div className="board-notes-card">
+            <div className="board-notes-card mt-4">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <FileText size={14} color="var(--primary)" />
                 <label 
-                  htmlFor="board-notes-input" 
+                  htmlFor="board-notes-input-2" 
                   className="text-xs font-semibold text-[var(--text-secondary)] uppercase tracking-wider"
                 >
                   Notes & consignes du planning :
                 </label>
               </div>
               <textarea
-                id="board-notes-input"
+                id="board-notes-input-2"
                 value={board.settings.notes || ''}
                 onChange={(e) => handleNotesChange(e.target.value)}
                 rows={2}
@@ -1358,36 +1487,43 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
           </div>
         )}
 
-        {/* Panneau latéral / Bottom Sheet de modification de cellule */}
+        {/* 3. Volet latéral de propriétés de la case sélectionnée */}
         {selectedCell && (
-          <CellPropertiesPanel
-            cell={selectedCell}
-            rowLabel={selectedRowAxis?.label || 'Horaire'}
-            colLabel={selectedColAxis?.label || 'Jour'}
-            onUpdateCell={handleUpdateCell}
-            onClose={() => setSelectedCellId(null)}
-          />
+          <aside className="editor-sidebar-panel">
+            <CellPropertiesPanel
+              cell={selectedCell}
+              rowLabel={selectedRowAxis?.label || ''}
+              colLabel={selectedColAxis?.label || ''}
+              onUpdateCell={handleUpdateCell}
+              onClose={() => setSelectedCellId(null)}
+            />
+          </aside>
         )}
-      </div>
+      </main>
 
-      {/* ASSISTANT RAPIDE SMARTPHONE (WIZARD MODAL) */}
+      {/* Assistant Mobile de Création Rapide (Modale) */}
       {isWizardOpen && (
-        <div className="modal-overlay" role="dialog">
-          <div className="modal-card" style={{ maxWidth: '440px' }}>
-            <div className="modal-header">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-[var(--bg-glass-card)] border border-[var(--glass-border)] rounded-2xl p-5 max-w-md w-full shadow-2xl backdrop-blur-xl">
+            <div className="flex items-center justify-between pb-3 mb-4 border-b border-[var(--glass-border-subtle)]">
               <div className="flex items-center gap-2">
-                <Sparkles size={18} color="var(--primary)" />
-                <h3 className="modal-title text-base font-bold">Assistant Création Téléphone</h3>
+                <Wand2 size={18} color="var(--primary)" />
+                <h3 className="text-base font-bold text-[var(--text-primary)]">Assistant Express</h3>
               </div>
-              <button className="btn-ghost btn-icon" onClick={() => setIsWizardOpen(false)}>
-                <X size={16} />
+              <button 
+                type="button" 
+                onClick={() => setIsWizardOpen(false)}
+                className="btn-ghost btn-icon p-1 text-[var(--text-secondary)]"
+              >
+                <X size={18} />
               </button>
             </div>
-            <div className="modal-body gap-3">
-              <p className="text-xs text-[var(--text-secondary)]">
-                Sélectionnez un modèle pré-formaté pour configurer instantanément votre emploi du temps sans réglages manuels :
-              </p>
 
+            <p className="text-xs text-[var(--text-secondary)] mb-4">
+              Sélectionnez un modèle pré-rempli pour reconfigurer instantanément votre emploi du temps :
+            </p>
+
+            <div className="space-y-2.5">
               <button
                 type="button"
                 onClick={() => applyQuickMobilePreset('school_standard')}
@@ -1439,10 +1575,18 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
         <ShareModal board={board} onClose={() => setIsShareModalOpen(false)} />
       )}
 
-      {/* Modale d'aperçu d'impression & export */}
+      {/* Modale d'aperçu d'impression & export PDF vectoriel */}
       {isPrintModalOpen && (
         <PrintPreviewModal board={board} onClose={() => setIsPrintModalOpen(false)} />
       )}
+
+      {/* Modale de statistiques et volume horaire */}
+      <StatsModal
+        isOpen={isStatsModalOpen}
+        onClose={() => setIsStatsModalOpen(false)}
+        courses={board.courses || []}
+        boardTitle={board.title}
+      />
 
       {/* Bouton d'Action Flottant (FAB +) Squircle violet #6200ee */}
       <button
@@ -1464,8 +1608,10 @@ export const BoardEditor: React.FC<BoardEditorProps> = ({ board, onUpdateBoard, 
         }}
         onSave={handleSaveCourse}
         onDelete={handleDeleteCourse}
+        onDuplicate={handleDuplicateCourse}
         initialCourse={editingCourse}
         boardId={board.id}
+        existingCourses={board.courses || []}
       />
     </div>
   );

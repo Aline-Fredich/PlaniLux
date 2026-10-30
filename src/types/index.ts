@@ -57,6 +57,13 @@ export interface BoardCell {
   items?: CellItem[];
 }
 
+export interface CourseTask {
+  id: string;
+  title: string;
+  dueDate?: string;
+  isCompleted: boolean;
+}
+
 export interface CourseEntry {
   id: string;
   board_id: string;
@@ -68,6 +75,7 @@ export interface CourseEntry {
   endTime: string;   // "10:00"
   color: string;     // "#4A90E2"
   notes?: string;
+  tasks?: CourseTask[]; // Tâches, devoirs & examens associés au cours
 }
 
 export type DensityLevel = 'normal' | 'compact' | 'ultra-compact' | 'micro';

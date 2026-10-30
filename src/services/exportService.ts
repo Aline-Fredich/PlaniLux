@@ -2,6 +2,7 @@ import { Document, Packer, Paragraph, Table, TableRow, TableCell, TextRun, Width
 import jsPDF from 'jspdf';
 import { toPng } from 'html-to-image';
 import { Board, PrintSettings } from '../types';
+import { timeToMinutes, computeDayCourseLayouts } from '../lib/courseLayout';
 
 /**
  * Nettoie une couleur hex pour docx (retire le # et vérifie 6 caractères)
@@ -214,11 +215,9 @@ export const exportBoardToPdf = (board: Board, settings: PrintSettings): Blob =>
   let pdfOrientation: 'portrait' | 'landscape' = isLandscape ? 'landscape' : 'portrait';
 
   if (settings.format === 'phone_wallpaper') {
-    // Format Smartphone (Ratio 9:16 vertical)
     pdfFormat = [108, 192];
     pdfOrientation = 'portrait';
   } else if (settings.format === 'desktop_wallpaper') {
-    // Format Fond d'écran Bureau (Ratio 16:9 paysage)
     pdfFormat = [192, 108];
     pdfOrientation = 'landscape';
   } else if (settings.format === 'tablet') {
@@ -241,13 +240,11 @@ export const exportBoardToPdf = (board: Board, settings: PrintSettings): Blob =>
   const margin = settings.margins === 'compact' ? 6 : settings.margins === 'none' ? 3 : 12;
   let currentY = margin + 5;
 
-  // Facteurs d'échelle et de densité (avec prise en compte de la réduction ciblée de la table)
   const scale = (settings.cellScale || 100) / 100;
   const tableScale = (settings.tableScaleOnly || 100) / 100;
-  const densityMultiplier = settings.density === 'compact' ? 0.65 : settings.density === 'spacious' ? 1.35 : 1.0;
   const fontScale = (settings.fontSizeScale || 100) / 100;
 
-  // Titre personnalisé
+  // Titre
   if (settings.showTitle !== false) {
     const titleText = settings.customTitle || board.title;
     doc.setFont('Helvetica', 'bold');
@@ -257,7 +254,7 @@ export const exportBoardToPdf = (board: Board, settings: PrintSettings): Blob =>
     currentY += Math.max(4, Math.round(5 * scale));
   }
 
-  // Sous-titre personnalisé ou date
+  // Sous-titre ou date
   if (settings.showSubtitle !== false && settings.customSubtitle) {
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(Math.max(6, Math.round(8.5 * scale * fontScale)));
@@ -270,67 +267,146 @@ export const exportBoardToPdf = (board: Board, settings: PrintSettings): Blob =>
     doc.setFont('Helvetica', 'italic');
     doc.setFontSize(Math.max(5.5, Math.round(7.5 * scale * fontScale)));
     doc.setTextColor(107, 114, 128);
-    doc.text(`Document imprimé le ${new Date().toLocaleDateString('fr-FR')} • Planilux`, margin, currentY);
+    doc.text(`Document officiel imprimé le ${new Date().toLocaleDateString('fr-FR')} • Planilux`, margin, currentY);
     currentY += Math.max(4, Math.round(5.5 * scale));
   }
 
   const colAxes = board.axes.filter(a => a.axis === 'column').sort((a, b) => a.position - b.position);
-  const rowAxes = board.axes.filter(a => a.axis === 'row').sort((a, b) => a.position - b.position);
-
   const availableWidth = pageWidth - (margin * 2);
   const showTime = settings.showTimeCol !== false;
-  const timeColWidth = showTime ? Math.min(32, availableWidth * 0.18 * tableScale) : 0;
+  const timeColWidth = showTime ? Math.min(26, availableWidth * 0.14 * tableScale) : 0;
   const dataColWidth = (availableWidth - timeColWidth) / Math.max(1, colAxes.length);
 
-  // Hauteur de ligne dynamique tenant compte de la densité, du zoom et de la table seule
-  const baseCalculated = (pageHeight - currentY - margin - 15) / Math.max(1, rowAxes.length + 1);
-  const rowHeight = Math.max(4.5, Math.min(30, baseCalculated * densityMultiplier * scale * tableScale));
-
-  // Couleur d'en-tête dynamique
+  // Couleurs dynamiques
   const headerHex = (settings.headerBgColor || '#f1f5f9').replace('#', '');
   const headR = parseInt(headerHex.substring(0, 2), 16) || 241;
   const headG = parseInt(headerHex.substring(2, 4), 16) || 245;
   const headB = parseInt(headerHex.substring(4, 6), 16) || 249;
 
-  // Couleur de bordure dynamique
   const borderHex = (settings.borderColor || '#cbd5e1').replace('#', '');
   const bR = parseInt(borderHex.substring(0, 2), 16) || 203;
   const bG = parseInt(borderHex.substring(2, 4), 16) || 213;
   const bB = parseInt(borderHex.substring(4, 6), 16) || 225;
 
-  // En-tête de table
-  if (showTime) {
-    doc.setFillColor(headR, headG, headB);
-    doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
-    if (settings.showBorders) {
-      doc.setDrawColor(bR, bG, bB);
-      doc.rect(margin, currentY, timeColWidth, rowHeight, 'S');
+  // CAS 1 : GRILLE HORAIRE CONTINUE (08:00 - 19:00) SI EMPLOI DU TEMPS AVEC COURS
+  if (board.template_type === 'timetable' || (board.courses && board.courses.length > 0)) {
+    const HOURS = [8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18];
+    const headerHeight = Math.max(7, Math.round(9 * tableScale));
+    const gridAvailableHeight = pageHeight - currentY - margin - (settings.includeNotes && board.settings.notes ? 18 : 6);
+    const hourHeight = Math.max(8, Math.min(22, (gridAvailableHeight - headerHeight) / HOURS.length));
+    const totalGridHeight = hourHeight * HOURS.length;
+
+    // En-tête des colonnes
+    if (showTime) {
+      doc.setFillColor(headR, headG, headB);
+      doc.rect(margin, currentY, timeColWidth, headerHeight, 'F');
+      if (settings.showBorders) {
+        doc.setDrawColor(bR, bG, bB);
+        doc.rect(margin, currentY, timeColWidth, headerHeight, 'S');
+      }
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(Math.max(5, Math.round(7.5 * fontScale * tableScale)));
+      doc.setTextColor(30, 41, 59);
+      doc.text('HORAIRE', margin + (timeColWidth / 2), currentY + (headerHeight / 2) + 1.2, { align: 'center' });
     }
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(Math.max(5, Math.round(7.5 * fontScale * tableScale)));
-    doc.setTextColor(30, 41, 59);
-    doc.text('HORAIRE', margin + (timeColWidth / 2), currentY + (rowHeight / 2) + 1.5, { align: 'center' });
-  }
 
-  colAxes.forEach((col, idx) => {
-    const x = margin + timeColWidth + (idx * dataColWidth);
-    doc.setFillColor(headR, headG, headB);
-    doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
-    if (settings.showBorders) {
-      doc.setDrawColor(bR, bG, bB);
-      doc.rect(x, currentY, dataColWidth, rowHeight, 'S');
+    colAxes.forEach((col, idx) => {
+      const x = margin + timeColWidth + (idx * dataColWidth);
+      doc.setFillColor(headR, headG, headB);
+      doc.rect(x, currentY, dataColWidth, headerHeight, 'F');
+      if (settings.showBorders) {
+        doc.setDrawColor(bR, bG, bB);
+        doc.rect(x, currentY, dataColWidth, headerHeight, 'S');
+      }
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(Math.max(5, Math.round(7.5 * fontScale * tableScale)));
+      doc.setTextColor(17, 24, 39);
+      doc.text(col.label, x + (dataColWidth / 2), currentY + (headerHeight / 2) + 1.2, { align: 'center' });
+    });
+
+    currentY += headerHeight;
+    const gridStartY = currentY;
+
+    // Colonne horaire à gauche
+    if (showTime) {
+      HOURS.forEach((h, i) => {
+        const y = gridStartY + (i * hourHeight);
+        doc.setFillColor(248, 250, 252);
+        doc.rect(margin, y, timeColWidth, hourHeight, 'F');
+        if (settings.showBorders) {
+          doc.setDrawColor(bR, bG, bB);
+          doc.rect(margin, y, timeColWidth, hourHeight, 'S');
+        }
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(Math.max(4.5, Math.round(6.5 * fontScale * tableScale)));
+        doc.setTextColor(71, 85, 105);
+        doc.text(`${h.toString().padStart(2, '0')}:00`, margin + (timeColWidth / 2), y + 3.5, { align: 'center' });
+      });
     }
-    doc.setFont('Helvetica', 'bold');
-    doc.setFontSize(Math.max(5, Math.round(7.5 * fontScale * tableScale)));
-    doc.setTextColor(17, 24, 39);
-    doc.text(col.label, x + (dataColWidth / 2), currentY + (rowHeight / 2) + 1.5, { align: 'center' });
-  });
 
-  currentY += rowHeight;
+    // Fond de grille et lignes horaires
+    colAxes.forEach((_, dayIdx) => {
+      const colX = margin + timeColWidth + (dayIdx * dataColWidth);
 
-  // Lignes de données
-  rowAxes.forEach(row => {
-    // Colonne d'axe horaire/étiquette
+      HOURS.forEach((_, i) => {
+        const y = gridStartY + (i * hourHeight);
+        doc.setFillColor(255, 255, 255);
+        doc.rect(colX, y, dataColWidth, hourHeight, 'F');
+        if (settings.showBorders) {
+          doc.setDrawColor(bR, bG, bB);
+          doc.rect(colX, y, dataColWidth, hourHeight, 'S');
+        }
+      });
+
+      // Dessin des cours du jour
+      const dayCourses = (board.courses || []).filter(c => c.dayIndex === dayIdx);
+      const dayLayouts = computeDayCourseLayouts(dayCourses);
+
+      dayCourses.forEach(course => {
+        const startMin = timeToMinutes(course.startTime);
+        const endMin = timeToMinutes(course.endTime);
+        const topOffset = ((startMin - 480) / 60) * hourHeight;
+        const cHeight = ((endMin - startMin) / 60) * hourHeight;
+
+        const layout = dayLayouts.get(course.id) || { colIndex: 0, totalCols: 1, hasConflict: false };
+        const subWidth = (dataColWidth - 2) / layout.totalCols;
+        const subX = colX + 1 + (layout.colIndex * subWidth);
+
+        // Couleur de la carte
+        const hex = (course.color || '#4A90E2').replace('#', '');
+        const r = parseInt(hex.substring(0, 2), 16) || 74;
+        const g = parseInt(hex.substring(2, 4), 16) || 144;
+        const b = parseInt(hex.substring(4, 6), 16) || 226;
+
+        doc.setFillColor(r, g, b);
+        doc.roundedRect(subX + 0.5, gridStartY + topOffset + 0.5, subWidth - 1, cHeight - 1, 1.5, 1.5, 'F');
+
+        // Textes du cours en blanc pur
+        doc.setTextColor(255, 255, 255);
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(Math.max(4.5, Math.round(6.5 * fontScale * tableScale)));
+
+        const titleText = doc.splitTextToSize(course.title, Math.max(8, subWidth - 3));
+        doc.text(titleText.slice(0, 2), subX + 2, gridStartY + topOffset + 3.5);
+
+        if (cHeight > 8) {
+          doc.setFont('Helvetica', 'normal');
+          doc.setFontSize(Math.max(4, Math.round(5.5 * fontScale * tableScale)));
+          if (course.room) {
+            doc.text(`Salle: ${course.room}`, subX + 2, gridStartY + topOffset + cHeight - 2);
+          }
+        }
+      });
+    });
+
+    currentY += totalGridHeight;
+  } else {
+    // CAS 2 : MATRICE CLASSIQUE PAR CELLULES
+    const rowAxes = board.axes.filter(a => a.axis === 'row').sort((a, b) => a.position - b.position);
+    const densityMultiplier = settings.density === 'compact' ? 0.65 : settings.density === 'spacious' ? 1.35 : 1.0;
+    const baseCalculated = (pageHeight - currentY - margin - 15) / Math.max(1, rowAxes.length + 1);
+    const rowHeight = Math.max(4.5, Math.min(30, baseCalculated * densityMultiplier * scale * tableScale));
+
     if (showTime) {
       doc.setFillColor(headR, headG, headB);
       doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
@@ -339,52 +415,80 @@ export const exportBoardToPdf = (board: Board, settings: PrintSettings): Blob =>
         doc.rect(margin, currentY, timeColWidth, rowHeight, 'S');
       }
       doc.setFont('Helvetica', 'bold');
-      doc.setFontSize(Math.max(4.5, Math.round(6.8 * fontScale * tableScale)));
-      doc.setTextColor(55, 65, 81);
-      
-      const splitLabel = doc.splitTextToSize(row.label, Math.max(10, timeColWidth - 2));
-      doc.text(splitLabel, margin + (timeColWidth / 2), currentY + (rowHeight / 2) + 1, { align: 'center' });
+      doc.setFontSize(Math.max(5, Math.round(7.5 * fontScale * tableScale)));
+      doc.setTextColor(30, 41, 59);
+      doc.text('HORAIRE', margin + (timeColWidth / 2), currentY + (rowHeight / 2) + 1.5, { align: 'center' });
     }
 
-    // Cellules
-    colAxes.forEach((col, colIdx) => {
-      const x = margin + timeColWidth + (colIdx * dataColWidth);
-      const cellData = board.cells.find(c => c.row_axis_id === row.id && c.column_axis_id === col.id);
-
-      if (cellData && cellData.background_color && settings.printColors && cellData.background_color !== '#ffffff') {
-        const hex = cellData.background_color.replace('#', '');
-        const r = parseInt(hex.substring(0, 2), 16) || 255;
-        const g = parseInt(hex.substring(2, 4), 16) || 255;
-        const b = parseInt(hex.substring(4, 6), 16) || 255;
-        doc.setFillColor(r, g, b);
-        doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
-      } else {
-        doc.setFillColor(255, 255, 255);
-        doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
-      }
-
+    colAxes.forEach((col, idx) => {
+      const x = margin + timeColWidth + (idx * dataColWidth);
+      doc.setFillColor(headR, headG, headB);
+      doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
       if (settings.showBorders) {
         doc.setDrawColor(bR, bG, bB);
         doc.rect(x, currentY, dataColWidth, rowHeight, 'S');
       }
-
-      if (cellData && cellData.content) {
-        doc.setFont('Helvetica', cellData.text_style?.bold ? 'bold' : 'normal');
-        doc.setFontSize(Math.max(4.5, Math.round(6.5 * fontScale * tableScale)));
-        doc.setTextColor(31, 41, 55);
-
-        const lines = doc.splitTextToSize(cellData.content, Math.max(8, dataColWidth - 2));
-        const textY = currentY + (rowHeight > 10 ? 3.5 : 2.5);
-        doc.text(lines.slice(0, 4), x + (dataColWidth / 2), textY, { align: 'center' });
-      }
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(Math.max(5, Math.round(7.5 * fontScale * tableScale)));
+      doc.setTextColor(17, 24, 39);
+      doc.text(col.label, x + (dataColWidth / 2), currentY + (rowHeight / 2) + 1.5, { align: 'center' });
     });
 
     currentY += rowHeight;
-  });
+
+    rowAxes.forEach(row => {
+      if (showTime) {
+        doc.setFillColor(headR, headG, headB);
+        doc.rect(margin, currentY, timeColWidth, rowHeight, 'F');
+        if (settings.showBorders) {
+          doc.setDrawColor(bR, bG, bB);
+          doc.rect(margin, currentY, timeColWidth, rowHeight, 'S');
+        }
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(Math.max(4.5, Math.round(6.8 * fontScale * tableScale)));
+        doc.setTextColor(55, 65, 81);
+        const splitLabel = doc.splitTextToSize(row.label, Math.max(10, timeColWidth - 2));
+        doc.text(splitLabel, margin + (timeColWidth / 2), currentY + (rowHeight / 2) + 1, { align: 'center' });
+      }
+
+      colAxes.forEach((col, colIdx) => {
+        const x = margin + timeColWidth + (colIdx * dataColWidth);
+        const cellData = board.cells.find(c => c.row_axis_id === row.id && c.column_axis_id === col.id);
+
+        if (cellData && cellData.background_color && settings.printColors && cellData.background_color !== '#ffffff') {
+          const hex = cellData.background_color.replace('#', '');
+          const r = parseInt(hex.substring(0, 2), 16) || 255;
+          const g = parseInt(hex.substring(2, 4), 16) || 255;
+          const b = parseInt(hex.substring(4, 6), 16) || 255;
+          doc.setFillColor(r, g, b);
+          doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
+        } else {
+          doc.setFillColor(255, 255, 255);
+          doc.rect(x, currentY, dataColWidth, rowHeight, 'F');
+        }
+
+        if (settings.showBorders) {
+          doc.setDrawColor(bR, bG, bB);
+          doc.rect(x, currentY, dataColWidth, rowHeight, 'S');
+        }
+
+        if (cellData && cellData.content) {
+          doc.setFont('Helvetica', cellData.text_style?.bold ? 'bold' : 'normal');
+          doc.setFontSize(Math.max(4.5, Math.round(6.5 * fontScale * tableScale)));
+          doc.setTextColor(31, 41, 55);
+          const lines = doc.splitTextToSize(cellData.content, Math.max(8, dataColWidth - 2));
+          const textY = currentY + (rowHeight > 10 ? 3.5 : 2.5);
+          doc.text(lines.slice(0, 4), x + (dataColWidth / 2), textY, { align: 'center' });
+        }
+      });
+
+      currentY += rowHeight;
+    });
+  }
 
   // Notes de bas de page si présentes
   if (settings.includeNotes && board.settings.notes && currentY < pageHeight - 15) {
-    currentY += 6;
+    currentY += 5;
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(8);
     doc.setTextColor(55, 65, 81);
@@ -415,12 +519,12 @@ export const downloadFile = (blob: Blob, filename: string): void => {
 };
 
 /**
- * Exporte un élément DOM sous forme d'image PNG haute fidélité (pour fond d'écran ou partage)
+ * Exporte un élément DOM sous forme d'image PNG haute fidélité
  */
 export const exportElementToPng = async (element: HTMLElement, filename: string): Promise<void> => {
   const dataUrl = await toPng(element, {
     quality: 1.0,
-    pixelRatio: 2.5, // 2.5x pour un rendu ultra net sur écran Retina et Smartphone
+    pixelRatio: 2.5,
     cacheBust: true
   });
   const a = document.createElement('a');
